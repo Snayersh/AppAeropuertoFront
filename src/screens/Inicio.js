@@ -6,15 +6,13 @@ import axios from 'axios';
 import VueloCard from '../components/VueloCard';
 import { API_URL } from '../config'
 
-
-
 const Inicio = ({ navigation }) => {
     const [estadisticas, setEstadisticas] = useState({ activos: 0, llegadas: 0, salidas: 0 });
     const [vuelos, setVuelos] = useState([]);
     const [cargando, setCargando] = useState(true);
     const [usuario, setUsuario] = useState(null);
 
-    // 🔥 NUEVO SISTEMA DE FILTROS MÚLTIPLES (Emulando los Checkboxes de la Web) 🔥
+    // 🔥 TUS FILTROS (Mantenidos idénticos)
     const [filtrosTipo, setFiltrosTipo] = useState({ llegada: true, salida: true });
     const [filtrosEstado, setFiltrosEstado] = useState({
         programado: true,
@@ -62,41 +60,35 @@ const Inicio = ({ navigation }) => {
         );
     };
 
-  const cargarDatos = async () => {
+    const cargarDatos = async () => {
         setCargando(true);
         try {
-            const resStats = await axios.get(`${API_URL}/radar/estadisticas`);
+            const resStats = await axios.post(API_URL, { accion: 'radar_estadisticas' });
             if (resStats.data.success) setEstadisticas(resStats.data.data);
 
-            const resRadar = await axios.get(`${API_URL}/radar/dashboard`);    
+            const resRadar = await axios.post(API_URL, { accion: 'radar_vivo' });    
             if (resRadar.data.success) {
                 const vuelosFormateados = resRadar.data.vuelos.map(v => {
-                    // 🔥 CAZAMOS LOS NOMBRES EXACTOS DEL NUEVO SP DE ORACLE 🔥
-                    let fechaRaw = v.HORAPROGRAMADA || v.HoraProgramada || v.HORA_PROGRAMADA || '';
+                    
+                    let fechaRaw = v.fecha_salida || v.horaprogramada || v.hora_programada || '';
                     let horaMostrar = '--:--';
                     
                     if (fechaRaw) {
-                        let partes = String(fechaRaw).split(' ');
-                        if(partes.length > 1) {
-                             horaMostrar = partes[1].substring(0, 5);
-                        } else {
-                             const d = new Date(fechaRaw);
-                             if (!isNaN(d)) {
-                                 horaMostrar = d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-                             } else {
-                                 horaMostrar = String(fechaRaw).substring(0,5); 
-                             }
+                        const d = new Date(fechaRaw);
+                        if (!isNaN(d)) {
+                            horaMostrar = d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
                         }
                     }
 
                     return {
-                        id: v.IDVUELO || v.IdVuelo || v.ID_VUELO || 0,
-                        numero_vuelo: v.NUMEROVUELO || v.NumeroVuelo || v.NUMERO_VUELO || 'N/A',
-                        aerolinea: v.AEROLINEA || v.Aerolinea || 'La Aurora',
-                        tipo: (String(v.ESLLEGADA) === '1' || String(v.EsLlegada) === '1' || v.ESLLEGADA === true) ? 'Llegada' : 'Salida',
-                        ruta: v.ORIGENDESTINO || v.OrigenDestino || 'Origen ➔ Destino',
+                        // 🔥 ÚNICO CAMBIO: Aseguramos que el ID se capture de cualquier variante de Oracle
+                        id: v.id_vuelo || v.ID_VUELO || v.idvuelo || v.IDVUELO || v.id || 0, 
+                        numero_vuelo: v.codigo_vuelo || v.CODIGO_VUELO || v.numerovuelo || 'N/A',
+                        aerolinea: v.aerolinea || v.AEROLINEA || 'La Aurora',
+                        tipo: (String(v.es_llegada || v.esllegada || v.ES_LLEGADA) === '1') ? 'Llegada' : 'Salida',
+                        ruta: v.origendestino || v.ORIGENDESTINO || (v.origen_iata ? `${v.origen_iata} ➔ ${v.destino_iata}` : 'Ruta'),
                         hora: horaMostrar, 
-                        estado: String(v.ESTADO || v.Estado || '').toUpperCase().trim() 
+                        estado: String(v.estado_vuelo || v.ESTADO_VUELO || v.estado || v.ESTADO || '').toUpperCase().trim() 
                     };
                 });
                 setVuelos(vuelosFormateados);
@@ -107,44 +99,29 @@ const Inicio = ({ navigation }) => {
             setCargando(false);
         }
     };
-    // 🔥 LÓGICA DE FILTRADO COMBINADO (A PRUEBA DE FALLOS) 🔥
+
     const vuelosFiltrados = vuelos.filter(v => {
-        // 1. Verificamos Filtro de Tipo (Llegada/Salida)
         const isLlegada = v.tipo === 'Llegada';
         const isSalida = v.tipo === 'Salida';
         const cumpleTipo = (isLlegada && filtrosTipo.llegada) || (isSalida && filtrosTipo.salida);
 
-        // 2. Verificamos Filtro de Estado
         let cumpleEstado = false;
-        
-        // Limpiamos y aseguramos que sea texto en mayúsculas para evitar errores
         const est = String(v.estado || '').toUpperCase().trim();
 
-        // Usamos .includes() en lugar de === por si Oracle manda espacios o texto extra
         if (est.includes("PROGRAMADO") && filtrosEstado.programado) cumpleEstado = true;
         if ((est.includes("ABORDANDO") || est.includes("EN VUELO")) && filtrosEstado.abordando_vuelo) cumpleEstado = true;
-// 🔥 Agregamos "ATERRIZÓ" por si Oracle lo manda con tilde
-        if ((est.includes("ATERRIZA") || est.includes("ATERRIZÓ") || est.includes("FINALIZADO")) && filtrosEstado.aterrizado) cumpleEstado = true;        if (est.includes("RETRASADO") && filtrosEstado.retrasado) cumpleEstado = true;
+        if ((est.includes("ATERRIZA") || est.includes("ATERRIZÓ") || est.includes("FINALIZADO")) && filtrosEstado.aterrizado) cumpleEstado = true;
+        if (est.includes("RETRASADO") && filtrosEstado.retrasado) cumpleEstado = true;
         if (est.includes("CANCELADO") && filtrosEstado.cancelado) cumpleEstado = true;
 
-        // 🛡️ PARCHE DE SEGURIDAD: 
-        // Si el estado que manda Oracle es algo súper raro que no está en la lista de arriba, 
-        // lo mostramos por defecto para que la tarjeta no desaparezca misteriosamente.
-        if (!est.includes("PROGRAMADO") && 
-            !est.includes("ABORDANDO") && 
-            !est.includes("EN VUELO") && 
-            !est.includes("ATERRIZA") && 
-            !est.includes("FINALIZADO") && 
-            !est.includes("RETRASADO") && 
-            !est.includes("CANCELADO")) {
+        if (!est.includes("PROGRAMADO") && !est.includes("ABORDANDO") && !est.includes("EN VUELO") && 
+            !est.includes("ATERRIZA") && !est.includes("FINALIZADO") && !est.includes("RETRASADO") && !est.includes("CANCELADO")) {
             cumpleEstado = true; 
         }
 
-        // Debe cumplir ambas condiciones para mostrarse en la pantalla
         return cumpleTipo && cumpleEstado;
     });
 
-    // Funciones para alternar los filtros al tocar los botones
     const toggleTipo = (tipo) => setFiltrosTipo(prev => ({ ...prev, [tipo]: !prev[tipo] }));
     const toggleEstado = (estado) => setFiltrosEstado(prev => ({ ...prev, [estado]: !prev[estado] }));
 
@@ -170,7 +147,6 @@ const Inicio = ({ navigation }) => {
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false}>
-                
                 <View style={styles.generalMenuContainer}>
                     <TouchableOpacity style={styles.btnRadarGiga} onPress={() => navigation.navigate('Radar')}>
                         <Text style={styles.radarIcon}>🌍</Text>
@@ -178,47 +154,38 @@ const Inicio = ({ navigation }) => {
                     </TouchableOpacity>
                 </View>
 
-                {/* MENÚ PRIVADO DEL CLIENTE */}
                 {usuario && (
                     <View style={styles.menuClienteContainer}>
                         <Text style={styles.sectionTitle}>Mi Cuenta</Text>
                         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.menuScroll}>
-                            
                             <TouchableOpacity style={styles.menuBtn} onPress={() => navigation.navigate('MiPerfil')}>
                                 <Text style={styles.menuIcon}>👤</Text>
                                 <Text style={styles.menuText}>Mi Perfil</Text>
                             </TouchableOpacity>
-                            
                             <TouchableOpacity style={[styles.menuBtn, { borderColor: '#f39c12' }]} onPress={() => navigation.navigate('Reservas')}>
                                 <Text style={styles.menuIcon}>🛒</Text>
                                 <Text style={[styles.menuText, { color: '#f39c12' }]}>Reservar</Text>
                             </TouchableOpacity>
-                            
                             <TouchableOpacity style={styles.menuBtn} onPress={() => navigation.navigate('MisBoletos')}>
                                 <Text style={styles.menuIcon}>🎫</Text>
                                 <Text style={styles.menuText}>Mis Boletos</Text>
                             </TouchableOpacity>
-                            
                             <TouchableOpacity style={[styles.menuBtn, { borderColor: '#27ae60' }]} onPress={() => navigation.navigate('Pagos')}>
                                 <Text style={styles.menuIcon}>💳</Text>
                                 <Text style={[styles.menuText, { color: '#27ae60' }]}>Pagar</Text>
                             </TouchableOpacity>
-                            
                             <TouchableOpacity style={styles.menuBtn} onPress={() => navigation.navigate('Equipaje')}>
                                 <Text style={styles.menuIcon}>🧳</Text>
                                 <Text style={styles.menuText}>Equipaje</Text>
                             </TouchableOpacity>
-
                             <TouchableOpacity style={styles.menuBtn} onPress={() => navigation.navigate('MisFacturas')}>
                                 <Text style={styles.menuIcon}>🧾</Text>
                                 <Text style={styles.menuText}>Facturas</Text>
                             </TouchableOpacity>
-
                         </ScrollView>
                     </View>
                 )}
 
-                {/* TARJETAS DE ESTADÍSTICAS */}
                 <View style={[styles.statsContainer, { marginTop: 15 }]}>
                     <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                         <View style={[styles.statCard, { backgroundColor: '#2c3e50' }]}>
@@ -236,11 +203,8 @@ const Inicio = ({ navigation }) => {
                     </ScrollView>
                 </View>
 
-                {/* SECCIÓN DE FILTROS AVANZADOS */}
                 <View style={styles.filtrosAvanzadosContainer}>
                     <Text style={styles.filtroLabel}>Filtros de Tablero:</Text>
-                    
-                    {/* Filtros de Tipo */}
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }}>
                         <TouchableOpacity style={[styles.chipBase, filtrosTipo.llegada ? styles.chipLlegadaOn : styles.chipOff]} onPress={() => toggleTipo('llegada')}>
                             <Text style={[styles.chipText, filtrosTipo.llegada ? styles.chipTextOn : styles.chipTextOff]}>🛬 Llegadas</Text>
@@ -250,31 +214,25 @@ const Inicio = ({ navigation }) => {
                         </TouchableOpacity>
                     </ScrollView>
 
-                    {/* Filtros de Estado */}
                     <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                         <TouchableOpacity style={[styles.chipBase, filtrosEstado.programado ? styles.chipEstadoOn : styles.chipOff]} onPress={() => toggleEstado('programado')}>
                             <Text style={[styles.chipText, filtrosEstado.programado ? styles.chipTextOn : styles.chipTextOff]}>Programado</Text>
                         </TouchableOpacity>
-                        
                         <TouchableOpacity style={[styles.chipBase, filtrosEstado.abordando_vuelo ? styles.chipEstadoOn : styles.chipOff]} onPress={() => toggleEstado('abordando_vuelo')}>
                             <Text style={[styles.chipText, filtrosEstado.abordando_vuelo ? styles.chipTextOn : styles.chipTextOff]}>En Vuelo/Abordando</Text>
                         </TouchableOpacity>
-                        
                         <TouchableOpacity style={[styles.chipBase, filtrosEstado.aterrizado ? styles.chipEstadoOn : styles.chipOff]} onPress={() => toggleEstado('aterrizado')}>
                             <Text style={[styles.chipText, filtrosEstado.aterrizado ? styles.chipTextOn : styles.chipTextOff]}>Aterrizado</Text>
                         </TouchableOpacity>
-                        
                         <TouchableOpacity style={[styles.chipBase, filtrosEstado.retrasado ? styles.chipRetrasoOn : styles.chipOff]} onPress={() => toggleEstado('retrasado')}>
                             <Text style={[styles.chipText, filtrosEstado.retrasado ? styles.chipTextDarkOn : styles.chipTextOff]}>Retrasado</Text>
                         </TouchableOpacity>
-
                         <TouchableOpacity style={[styles.chipBase, filtrosEstado.cancelado ? styles.chipCancelaOn : styles.chipOff]} onPress={() => toggleEstado('cancelado')}>
                             <Text style={[styles.chipText, filtrosEstado.cancelado ? styles.chipTextOn : styles.chipTextOff]}>Cancelado</Text>
                         </TouchableOpacity>
                     </ScrollView>
                 </View>
 
-                {/* LISTA DE VUELOS */}
                 <View style={styles.listContainer}>
                     <View style={styles.listHeader}>
                         <View style={styles.liveIndicator} />
@@ -295,7 +253,7 @@ const Inicio = ({ navigation }) => {
                                     <VueloCard vuelo={item} />
                                 </TouchableOpacity>
                             )}
-                            ListEmptyComponent={<Text style={{ textAlign: 'center', marginTop: 50, color: '#666' }}>No hay vuelos que coincidan con los filtros seleccionados.</Text>}
+                            ListEmptyComponent={<Text style={{ textAlign: 'center', marginTop: 50, color: '#666' }}>No hay vuelos que coincidan.</Text>}
                         />
                     )}
                 </View>
@@ -313,25 +271,20 @@ const styles = StyleSheet.create({
     btnLoginText: { color: '#0d47a1', fontWeight: 'bold' },
     btnLogout: { backgroundColor: '#e74c3c', paddingHorizontal: 15, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: '#c0392b' },
     btnLogoutText: { color: 'white', fontWeight: 'bold' },
-    
     generalMenuContainer: { padding: 15, marginTop: -15, zIndex: 9 },
     btnRadarGiga: { backgroundColor: '#1e272e', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 15, borderRadius: 15, shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 5, elevation: 5 },
     radarIcon: { fontSize: 24, marginRight: 10 },
     radarText: { color: '#4bcffa', fontSize: 16, fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1 },
-
     menuClienteContainer: { paddingBottom: 15, backgroundColor: 'white', borderBottomWidth: 1, borderBottomColor: '#eee' },
     sectionTitle: { fontSize: 14, fontWeight: 'bold', color: '#666', marginLeft: 15, marginBottom: 10, marginTop: 10, textTransform: 'uppercase' },
     menuScroll: { paddingLeft: 15 },
     menuBtn: { alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff', borderWidth: 1, borderColor: '#ddd', borderRadius: 12, paddingVertical: 10, paddingHorizontal: 15, marginRight: 10, minWidth: 90, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 5, elevation: 2 },
     menuIcon: { fontSize: 24, marginBottom: 5 },
     menuText: { fontSize: 12, fontWeight: 'bold', color: '#333' },
-    
     statsContainer: { paddingLeft: 15, zIndex: 10, marginBottom: 15 },
     statCard: { width: 160, height: 90, padding: 15, borderRadius: 15, marginRight: 15, justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 5, elevation: 5 },
     statLabel: { color: 'rgba(255,255,255,0.7)', fontSize: 11, fontWeight: 'bold', marginBottom: 5, letterSpacing: 1 },
     statValue: { color: 'white', fontSize: 24, fontWeight: 'bold' },
-
-    // 🔥 ESTILOS PARA LOS NUEVOS FILTROS 🔥
     filtrosAvanzadosContainer: { paddingHorizontal: 15, marginBottom: 20, backgroundColor: '#fff', paddingVertical: 15, borderTopWidth: 1, borderBottomWidth: 1, borderColor: '#eee' },
     filtroLabel: { fontSize: 12, fontWeight: 'bold', color: '#888', marginBottom: 10, textTransform: 'uppercase' },
     chipBase: { paddingHorizontal: 15, paddingVertical: 8, borderRadius: 20, borderWidth: 1, marginRight: 10 },
@@ -341,12 +294,10 @@ const styles = StyleSheet.create({
     chipEstadoOn: { backgroundColor: '#1565c0', borderColor: '#1565c0' },
     chipRetrasoOn: { backgroundColor: '#f1c40f', borderColor: '#f1c40f' },
     chipCancelaOn: { backgroundColor: '#e74c3c', borderColor: '#e74c3c' },
-    
     chipText: { fontSize: 12, fontWeight: 'bold' },
     chipTextOff: { color: '#666' },
     chipTextOn: { color: '#fff' },
     chipTextDarkOn: { color: '#333' },
-
     listContainer: { paddingHorizontal: 15, paddingBottom: 30 },
     listHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 15 },
     liveIndicator: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#e74c3c', marginRight: 10 },

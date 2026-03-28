@@ -3,9 +3,8 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator
 import axios from 'axios';
 import { API_URL } from '../config'
 
-
 const DetalleVuelo = ({ route, navigation }) => {
-    const { id } = route.params; // ID del vuelo que viene del Radar
+    const { id } = route.params;
     const [vuelo, setVuelo] = useState(null);
     const [cargando, setCargando] = useState(true);
     const [progreso, setProgreso] = useState(0);
@@ -19,14 +18,17 @@ const DetalleVuelo = ({ route, navigation }) => {
     useEffect(() => {
         if (vuelo) {
             calcularProgreso();
-            const interval = setInterval(calcularProgreso, 10000); // Actualiza cada 10 segundos
+            const interval = setInterval(calcularProgreso, 10000);
             return () => clearInterval(interval);
         }
     }, [vuelo]);
 
-    const cargarVuelo = async () => {
+   const cargarVuelo = async () => {
         try {
-            const response = await axios.get(`${API_URL}/vuelo/detalle/${id}`);
+            const response = await axios.post(API_URL, {
+                accion: 'detalle_vuelo',
+                id: id
+            });
             if (response.data.success) {
                 setVuelo(response.data.vuelo);
             }
@@ -39,12 +41,14 @@ const DetalleVuelo = ({ route, navigation }) => {
 
     const calcularProgreso = () => {
         if (!vuelo) return;
-        const tSalida = new Date(vuelo.FECHA_SALIDA || vuelo.fecha_salida).getTime();
-        const tLlegada = new Date(vuelo.FECHA_LLEGADA || vuelo.fecha_llegada).getTime();
+        // La fecha ya viene perfecta en ISO desde tu nuevo Backend
+        const tSalida = new Date(vuelo.fecha_salida).getTime();
+        const tLlegada = new Date(vuelo.fecha_llegada).getTime();
         const ahora = new Date().getTime();
-        const estado = (vuelo.ESTADO_VUELO || vuelo.estado_vuelo).toUpperCase();
+        const estado = String(vuelo.estado_vuelo || vuelo.estado || '').toUpperCase();
 
         const formatMsToHM = (ms) => {
+            if (ms < 0) return "0h 0m";
             const totalMinutos = Math.floor(ms / 60000);
             return `${Math.floor(totalMinutos / 60)}h ${totalMinutos % 60}m`;
         };
@@ -56,7 +60,7 @@ const DetalleVuelo = ({ route, navigation }) => {
             return;
         }
 
-        if (ahora < tSalida || estado === "PROGRAMADO") {
+        if (ahora < tSalida || estado.includes("PROGRAMADO")) {
             setProgreso(0);
             setTxtTranscurrido("Aún no despega");
             const diff = tSalida - ahora;
@@ -78,7 +82,7 @@ const DetalleVuelo = ({ route, navigation }) => {
     if (cargando) return <ActivityIndicator size="large" color="#0d47a1" style={{ flex: 1, backgroundColor: '#f4f7f6' }} />;
     if (!vuelo) return <Text style={{ textAlign: 'center', marginTop: 50 }}>Vuelo no encontrado.</Text>;
 
-    const escalaIata = vuelo.ESCALA_IATA || vuelo.escala_iata;
+    const escalaIata = vuelo.escala_iata;
 
     return (
         <View style={styles.container}>
@@ -93,11 +97,11 @@ const DetalleVuelo = ({ route, navigation }) => {
                 <View style={styles.card}>
                     <View style={styles.headerRow}>
                         <View>
-                            <Text style={styles.label}>Operado por {vuelo.AEROLINEA || vuelo.aerolinea}</Text>
-                            <Text style={styles.flightCode}>{vuelo.CODIGO_VUELO || vuelo.codigo_vuelo}</Text>
+                            <Text style={styles.label}>Operado por {vuelo.aerolinea || 'N/A'}</Text>
+                            <Text style={styles.flightCode}>{vuelo.codigo_vuelo || 'N/A'}</Text>
                         </View>
                         <View style={styles.badge}>
-                            <Text style={styles.badgeText}>{(vuelo.ESTADO_VUELO || vuelo.estado_vuelo).toUpperCase()}</Text>
+                            <Text style={styles.badgeText}>{String(vuelo.estado_vuelo || 'DESCONOCIDO').toUpperCase()}</Text>
                         </View>
                     </View>
 
@@ -105,12 +109,12 @@ const DetalleVuelo = ({ route, navigation }) => {
                     <View style={styles.routeBox}>
                         <View style={styles.routeRow}>
                             <View>
-                                <Text style={styles.iata}>{vuelo.ORIGEN_IATA || vuelo.origen_iata}</Text>
-                                <Text style={styles.city}>{vuelo.ORIGEN_CIUDAD || vuelo.origen_ciudad}</Text>
+                                <Text style={styles.iata}>{vuelo.origen_iata || '---'}</Text>
+                                <Text style={styles.city}>{vuelo.origen_ciudad || 'Origen'}</Text>
                             </View>
                             <View style={{ alignItems: 'flex-end' }}>
-                                <Text style={styles.iata}>{vuelo.DESTINO_IATA || vuelo.destino_iata}</Text>
-                                <Text style={styles.city}>{vuelo.DESTINO_CIUDAD || vuelo.destino_ciudad}</Text>
+                                <Text style={styles.iata}>{vuelo.destino_iata || '---'}</Text>
+                                <Text style={styles.city}>{vuelo.destino_ciudad || 'Destino'}</Text>
                             </View>
                         </View>
 
@@ -130,7 +134,7 @@ const DetalleVuelo = ({ route, navigation }) => {
                     {escalaIata && (
                         <View style={styles.escalaBox}>
                             <Text style={{ fontWeight: 'bold', color: '#f57c00' }}>⚠️ Escala Técnica: {escalaIata}</Text>
-                            <Text style={{ fontSize: 12, color: '#666' }}>{vuelo.ESCALA_CIUDAD || vuelo.escala_ciudad}</Text>
+                            <Text style={{ fontSize: 12, color: '#666' }}>{vuelo.escala_ciudad}</Text>
                         </View>
                     )}
 
@@ -139,18 +143,18 @@ const DetalleVuelo = ({ route, navigation }) => {
                     <View style={styles.itinerarioRow}>
                         <View>
                             <Text style={styles.label}>Salida</Text>
-                            <Text style={styles.dateVal}>{new Date(vuelo.FECHA_SALIDA || vuelo.fecha_salida).toLocaleString()}</Text>
+                            <Text style={styles.dateVal}>{new Date(vuelo.fecha_salida).toLocaleString()}</Text>
                         </View>
                         <View style={{ alignItems: 'flex-end' }}>
                             <Text style={styles.label}>Llegada Estimada</Text>
-                            <Text style={[styles.dateVal, { color: '#0d47a1' }]}>{new Date(vuelo.FECHA_LLEGADA || vuelo.fecha_llegada).toLocaleString()}</Text>
+                            <Text style={[styles.dateVal, { color: '#0d47a1' }]}>{new Date(vuelo.fecha_llegada).toLocaleString()}</Text>
                         </View>
                     </View>
 
                     {/* NAVE */}
                     <Text style={[styles.sectionTitle, { marginTop: 20 }]}>⚙️ Datos Operativos</Text>
-                    <Text style={styles.label}>Aeronave: <Text style={{ color: '#333' }}>{vuelo.AERONAVE_MODELO || vuelo.aeronave_modelo}</Text></Text>
-                    <Text style={styles.label}>Capacidad: <Text style={{ color: '#333' }}>{vuelo.AERONAVE_CAPACIDAD || vuelo.aeronave_capacidad} pasajeros</Text></Text>
+                    <Text style={styles.label}>Aeronave: <Text style={{ color: '#333' }}>{vuelo.aeronave_modelo || 'N/A'}</Text></Text>
+                    <Text style={styles.label}>Capacidad: <Text style={{ color: '#333' }}>{vuelo.aeronave_capacidad || 0} pasajeros</Text></Text>
                 </View>
             </ScrollView>
         </View>

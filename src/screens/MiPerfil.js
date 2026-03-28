@@ -1,17 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, TextInput, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
-import { API_URL } from '../config'
-
-
+import { API_URL } from '../config';
+import { useGuardia } from '../hooks/useGuardia'; // 🔥 GUARDIA IMPORTADO
 
 const MiPerfil = ({ navigation }) => {
-    const [correoUsuario, setCorreoUsuario] = useState('');
+    // 🔥 CONTRATAMOS AL GUARDIA
+    const { correoAuth, tokenAuth, verificandoGuardia } = useGuardia(navigation);
+
     const [cargando, setCargando] = useState(true);
     const [guardando, setGuardando] = useState(false);
-    
-    // Para el panel de mensajes (éxito o error)
     const [mensaje, setMensaje] = useState({ texto: '', tipo: '' });
 
     const [form, setForm] = useState({
@@ -20,29 +19,22 @@ const MiPerfil = ({ navigation }) => {
         telefono: ''
     });
 
-    // Cuando la pantalla carga, ejecutamos esto
     useEffect(() => {
-        cargarDatosPerfil();
-    }, []);
+        if (!verificandoGuardia && correoAuth && tokenAuth) {
+            cargarDatosPerfil();
+        }
+    }, [verificandoGuardia, correoAuth, tokenAuth]);
 
     const cargarDatosPerfil = async () => {
         try {
-            // 1. Sacamos el correo que guardamos cuando hizo Login
-            const email = await AsyncStorage.getItem('UserEmail');
-            if (!email) {
-                navigation.replace('Login'); // Si no hay sesión, pa' fuera
-                return;
-            }
-            setCorreoUsuario(email);
-
-            // 2. Vamos a Oracle a traer los datos
-            const response = await axios.get(`${API_URL}/clientes/perfil/${email}`);
+            const response = await axios.post(API_URL, {
+                accion: 'perfil_obtener',
+                correo: correoAuth,
+                token: tokenAuth
+            });
             
             if (response.data.success) {
                 const perfil = response.data.perfil;
-                
-                // OJO: Oracle a veces devuelve las columnas en MAYÚSCULAS.
-                // Usamos esta validación para que no falle sin importar cómo venga.
                 setForm({
                     primer_nombre: perfil.PRIMER_NOMBRE || perfil.primer_nombre || '',
                     segundo_nombre: perfil.SEGUNDO_NOMBRE || perfil.segundo_nombre || '',
@@ -52,7 +44,6 @@ const MiPerfil = ({ navigation }) => {
                 });
             }
         } catch (error) {
-            console.log("Error cargando perfil:", error);
             setMensaje({ texto: 'Error al cargar tus datos. Revisa tu conexión.', tipo: 'error' });
         } finally {
             setCargando(false);
@@ -69,30 +60,27 @@ const MiPerfil = ({ navigation }) => {
         setMensaje({ texto: '', tipo: '' });
 
         try {
-            // Mandamos los datos a tu SP_ACTUALIZAR_PERFIL
-            const response = await axios.put(`${API_URL}/clientes/perfil/actualizar`, {
-                correo: correoUsuario,
+            const response = await axios.post(API_URL, {
+                accion: 'perfil_actualizar',
+                correo: correoAuth,
+                token: tokenAuth,
                 ...form
             });
 
             if (response.data.success) {
                 setMensaje({ texto: '¡Tu perfil se ha actualizado correctamente!', tipo: 'exito' });
-                
-                // EL TRUCO DE ORO: Actualizamos el nombre en el teléfono para que la pantalla de Inicio lo salude bien
                 await AsyncStorage.setItem('UserName', form.primer_nombre);
+            } else {
+                setMensaje({ texto: response.data.mensaje || 'No se pudo actualizar el perfil.', tipo: 'error' });
             }
         } catch (error) {
-            if (error.response && error.response.data) {
-                setMensaje({ texto: error.response.data.mensaje, tipo: 'error' });
-            } else {
-                setMensaje({ texto: 'Error al conectar con el servidor.', tipo: 'error' });
-            }
+            setMensaje({ texto: 'Error al conectar con el servidor.', tipo: 'error' });
         } finally {
             setGuardando(false);
         }
     };
 
-    if (cargando) {
+    if (verificandoGuardia || cargando) {
         return (
             <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
                 <ActivityIndicator size="large" color="#0d47a1" />
@@ -103,7 +91,6 @@ const MiPerfil = ({ navigation }) => {
 
     return (
         <View style={styles.container}>
-            {/* Barra Superior */}
             <View style={styles.topBar}>
                 <Text style={styles.topBarTitle}>👤 Gestión de Cuenta</Text>
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.btnVolver}>
@@ -113,15 +100,12 @@ const MiPerfil = ({ navigation }) => {
 
             <ScrollView contentContainerStyle={styles.content}>
                 <View style={styles.profileCard}>
-                    
-                    {/* Ícono Circular */}
                     <View style={styles.iconCircle}>
                         <Text style={styles.iconText}>🧑‍💻</Text>
                     </View>
                     <Text style={styles.pageTitle}>Mi Perfil Personal</Text>
                     <Text style={styles.pageSubtitle}>Actualiza tu información de contacto</Text>
 
-                    {/* Panel de Mensajes (Tu pnlMensaje de VB) */}
                     {mensaje.texto !== '' && (
                         <View style={[styles.alertPanel, mensaje.tipo === 'exito' ? styles.alertExito : styles.alertError]}>
                             <Text style={[styles.alertText, mensaje.tipo === 'exito' ? styles.textExito : styles.textError]}>
@@ -130,7 +114,6 @@ const MiPerfil = ({ navigation }) => {
                         </View>
                     )}
 
-                    {/* Formulario */}
                     <Text style={styles.label}>Primer Nombre *</Text>
                     <TextInput style={styles.input} value={form.primer_nombre} onChangeText={(val) => setForm({...form, primer_nombre: val})} />
 
@@ -146,11 +129,9 @@ const MiPerfil = ({ navigation }) => {
                     <Text style={styles.label}>Teléfono de Contacto *</Text>
                     <TextInput style={styles.input} keyboardType="phone-pad" value={form.telefono} onChangeText={(val) => setForm({...form, telefono: val})} />
 
-                    {/* Botón Guardar */}
                     <TouchableOpacity style={styles.btnGuardar} onPress={handleGuardar} disabled={guardando}>
                         {guardando ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnGuardarText}>💾 Guardar Cambios</Text>}
                     </TouchableOpacity>
-
                 </View>
             </ScrollView>
         </View>

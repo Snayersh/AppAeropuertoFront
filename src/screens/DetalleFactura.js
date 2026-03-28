@@ -5,21 +5,35 @@ import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { API_URL } from '../config';
 
+// 1. Importas a tu guardia
+import { useGuardia } from '../hooks/useGuardia'; 
+
 const DetalleFactura = ({ route, navigation }) => {
+    // 2. Contratas al guardia y le pides los datos
+    const { correoAuth, tokenAuth, verificandoGuardia } = useGuardia(navigation);
+
     const { id_factura } = route.params; 
     const [cabecera, setCabecera] = useState(null);
     const [detalles, setDetalles] = useState([]);
     const [cargando, setCargando] = useState(true);
     const [generandoPDF, setGenerandoPDF] = useState(false);
 
+    // 3. Esperamos al guardia antes de cargar
     useEffect(() => {
-        cargarFactura();
-    }, []);
+        if (!verificandoGuardia && correoAuth && tokenAuth) {
+            cargarFactura();
+        }
+    }, [verificandoGuardia, correoAuth, tokenAuth]);
 
     const cargarFactura = async () => {
         try {
-            // Ya con la ruta corregida hacia /detalle/
-            const response = await axios.get(`${API_URL}/pagos/detalle/${id_factura}`);
+            const response = await axios.post(API_URL, {
+                accion: 'detalle_factura',
+                id_factura: id_factura,
+                // 🔥 Se envían las credenciales del guardia
+                correo: correoAuth,
+                token: tokenAuth
+            });
             if (response.data.success) {
                 setCabecera(response.data.cabecera);
                 setDetalles(response.data.detalles);
@@ -31,11 +45,9 @@ const DetalleFactura = ({ route, navigation }) => {
         }
     };
 
-    // 🔥 NUEVA FUNCIÓN: Generar y Compartir PDF
     const generarPDF = async () => {
         setGenerandoPDF(true);
         try {
-            // 1. Armamos las filas de la tabla leyendo los detalles
             const filasTabla = detalles.map(item => `
                 <tr>
                     <td>${item.DESCRIPCION || item.descripcion}</td>
@@ -44,7 +56,6 @@ const DetalleFactura = ({ route, navigation }) => {
                 </tr>
             `).join('');
 
-            // 2. Armamos el diseño de la hoja (HTML + CSS)
             const htmlContent = `
                 <!DOCTYPE html>
                 <html lang="es">
@@ -130,20 +141,17 @@ const DetalleFactura = ({ route, navigation }) => {
                 </html>
             `;
 
-            // 3. Generamos el archivo PDF en la memoria oculta de la app
             const { uri } = await Print.printToFileAsync({ 
                 html: htmlContent,
                 base64: false 
             });
 
-            // 4. Verificamos si el dispositivo permite compartir archivos
             const isSharingAvailable = await Sharing.isAvailableAsync();
             if (isSharingAvailable) {
-                // Abrimos el menú del celular (WhatsApp, Guardar en Archivos, Correo, etc.)
                 await Sharing.shareAsync(uri, {
                     mimeType: 'application/pdf',
                     dialogTitle: 'Guardar o Compartir Factura',
-                    UTI: 'com.adobe.pdf' // Etiqueta especial para que los iPhone reconozcan que es un PDF
+                    UTI: 'com.adobe.pdf' 
                 });
             } else {
                 Alert.alert("Aviso", "No se puede compartir o guardar el archivo en este dispositivo.");
@@ -157,7 +165,8 @@ const DetalleFactura = ({ route, navigation }) => {
         }
     };
 
-    if (cargando) return <ActivityIndicator size="large" color="#0d47a1" style={{ flex: 1, justifyContent: 'center' }} />;
+    // 4. Pantalla de carga mientras el guardia revisa
+    if (verificandoGuardia || cargando) return <ActivityIndicator size="large" color="#0d47a1" style={{ flex: 1, justifyContent: 'center' }} />;
     if (!cabecera) return <Text style={{ textAlign: 'center', marginTop: 50 }}>Factura no encontrada.</Text>;
 
     return (
@@ -167,7 +176,6 @@ const DetalleFactura = ({ route, navigation }) => {
                     <Text style={styles.btnVolverText}>← Cerrar</Text>
                 </TouchableOpacity>
                 
-                {/* 🔥 BOTÓN ACTUALIZADO PARA DISPARAR LA FUNCIÓN */}
                 <TouchableOpacity 
                     style={styles.btnPrint} 
                     onPress={generarPDF}
@@ -209,7 +217,6 @@ const DetalleFactura = ({ route, navigation }) => {
                         </View>
                     </View>
 
-                    {/* TABLA DE DETALLES */}
                     <View style={styles.table}>
                         <View style={styles.tableHead}>
                             <Text style={[styles.th, { flex: 2 }]}>Desc.</Text>

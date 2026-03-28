@@ -15,24 +15,30 @@ const Radar = ({ navigation }) => {
         cargarVuelosRadar();
     }, []);
 
-    const cargarVuelosRadar = async () => {
+ const cargarVuelosRadar = async () => {
         try {
-            const response = await axios.get(`${API_URL}/radar/vivo`);
+            // 🔥 CAMBIO: Apuntamos al puente con la acción 'radar_vivo'
+            const response = await axios.post(API_URL, { 
+                accion: 'radar_mapa' 
+            });
+            
             if (response.data.success) {
                 // Adaptamos las claves de Oracle (que vienen en mayúsculas) a minúsculas
                 const vuelosMap = response.data.vuelos.map(v => ({
-                    id_vuelo: v.ID_VUELO,
-                    codigo_vuelo: v.CODIGO_VUELO,
-                    origen_iata: v.ORIGEN_IATA,
-                    destino_iata: v.DESTINO_IATA,
-                    orig_lat: v.ORIG_LAT, orig_lng: v.ORIG_LNG,
-                    dest_lat: v.DEST_LAT, dest_lng: v.DEST_LNG,
-                    escala_iata: v.ESCALA_IATA || null,
-                    escala_lat: v.ESCALA_LAT || null,
-                    escala_lng: v.ESCALA_LNG || null,
-                    fecha_salida: v.FECHA_SALIDA,
-                    fecha_llegada: v.FECHA_LLEGADA,
-                    id_estado_vuelo: v.ID_ESTADO_VUELO
+                    id_vuelo: v.ID_VUELO || v.id_vuelo,
+                    codigo_vuelo: v.CODIGO_VUELO || v.codigo_vuelo,
+                    origen_iata: v.ORIGEN_IATA || v.origen_iata,
+                    destino_iata: v.DESTINO_IATA || v.destino_iata,
+                    orig_lat: v.ORIG_LAT || v.orig_lat, 
+                    orig_lng: v.ORIG_LNG || v.orig_lng,
+                    dest_lat: v.DEST_LAT || v.dest_lat, 
+                    dest_lng: v.DEST_LNG || v.dest_lng,
+                    escala_iata: v.ESCALA_IATA || v.escala_iata || null,
+                    escala_lat: v.ESCALA_LAT || v.escala_lat || null,
+                    escala_lng: v.ESCALA_LNG || v.escala_lng || null,
+                    fecha_salida: v.FECHA_SALIDA || v.fecha_salida,
+                    fecha_llegada: v.FECHA_LLEGADA || v.fecha_llegada,
+                    id_estado_vuelo: v.ID_ESTADO_VUELO || v.id_estado_vuelo
                 }));
                 setVuelosCrudos(vuelosMap);
             }
@@ -140,15 +146,16 @@ const Radar = ({ navigation }) => {
                             />
 
                             {/* El Avioncito */}
-                          <Marker
+      <Marker
+    key={index}
     coordinate={{ latitude: avion.latActual, longitude: avion.lngActual }}
     title={`${avion.codigo_vuelo}`}
     description={textoRuta}
+    // 🔥 Usamos avion.id_vuelo que ya mapeamos arriba
     onPress={() => navigation.navigate('DetalleVuelo', { id: avion.id_vuelo })} 
 >
     <Text style={{ fontSize: 24 }}>✈️</Text>
-</Marker>
-                        </React.Fragment>
+</Marker>             </React.Fragment>
                     );
                 })}
             </MapView>

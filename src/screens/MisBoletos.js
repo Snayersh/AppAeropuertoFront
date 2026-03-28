@@ -1,48 +1,45 @@
 import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert, FlatList } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
-import { API_URL } from '../config'
-
-
+import { API_URL } from '../config';
+import { useGuardia } from '../hooks/useGuardia'; 
 
 const MisBoletos = ({ navigation }) => {
+    const { correoAuth, tokenAuth, verificandoGuardia } = useGuardia(navigation);
+
     const [boletos, setBoletos] = useState([]);
     const [cargando, setCargando] = useState(true);
-    const [correo, setCorreo] = useState('');
-    
-    // 1 = Pendiente, 2 = Pagados, 3 = Cancelados, 0 = Todos
     const [filtroEstado, setFiltroEstado] = useState(1); 
 
     useFocusEffect(
         useCallback(() => {
-            obtenerSesionYCargar();
-        }, [filtroEstado])
+            if (!verificandoGuardia && correoAuth && tokenAuth) {
+                cargarBoletos(correoAuth, tokenAuth, filtroEstado);
+            }
+        }, [verificandoGuardia, correoAuth, tokenAuth, filtroEstado])
     );
 
-    const obtenerSesionYCargar = async () => {
-        try {
-            const email = await AsyncStorage.getItem('UserEmail');
-            if (!email) {
-                navigation.replace('Login');
-                return;
-            }
-            setCorreo(email);
-            cargarBoletos(email, filtroEstado);
-        } catch (error) {
-            console.log("Error leyendo sesión", error);
-        }
-    };
-
-    const cargarBoletos = async (emailUsuario, estado) => {
+    const cargarBoletos = async (emailUsuario, tokenUsuario, estado) => {
         setCargando(true);
         try {
-            const response = await axios.get(`${API_URL}/clientes/boletos/${emailUsuario}?estado=${estado}`);
+            const response = await axios.post(API_URL, {
+                accion: 'mis_boletos',
+                correo: emailUsuario,
+                estado: estado,
+                token: tokenUsuario
+            }, {
+                headers: { 'ngrok-skip-browser-warning': 'true', 'Bypass-Tunnel-Reminder': 'true' }
+            });
+            
             if (response.data.success) {
                 setBoletos(response.data.boletos);
             } else {
                 setBoletos([]);
+                if (response.data.mensaje === "SESION_EXPIRADA") {
+                    Alert.alert("🔎 Chisme del Guardia", response.data.debug_info || "Sin detalles");
+                    navigation.replace('Login');
+                }
             }
         } catch (error) {
             setBoletos([]);
@@ -57,11 +54,7 @@ const MisBoletos = ({ navigation }) => {
             "¿Estás seguro que deseas cancelar esta reserva? El asiento será liberado.",
             [
                 { text: "No, volver", style: "cancel" },
-                { 
-                    text: "Sí, cancelar", 
-                    style: "destructive",
-                    onPress: () => procesarCancelacion(idBoleto) 
-                }
+                { text: "Sí, cancelar", style: "destructive", onPress: () => procesarCancelacion(idBoleto) }
             ]
         );
     };
@@ -69,123 +62,136 @@ const MisBoletos = ({ navigation }) => {
     const procesarCancelacion = async (idBoleto) => {
         try {
             setCargando(true);
-            const response = await axios.post(`${API_URL}/operaciones/cancelar-reserva`, {
-                id_boleto: idBoleto
+            const response = await axios.post(API_URL, {
+                accion: 'cancelar_reserva',
+                id_boleto: idBoleto,
+                correo: correoAuth,
+                token: tokenAuth
+            }, {
+                headers: { 'ngrok-skip-browser-warning': 'true', 'Bypass-Tunnel-Reminder': 'true' }
             });
 
             if (response.data.success) {
                 Alert.alert("Éxito", "Reserva cancelada correctamente.");
-                cargarBoletos(correo, filtroEstado);
+                cargarBoletos(correoAuth, tokenAuth, filtroEstado);
+            } else {
+                // 🔥 SOLUCIÓN BUG 4: Si el servidor dice que ya expiró, le avisamos al usuario y actualizamos la vista
+                if (response.data.mensaje === "ERROR_NO_ENCONTRADA_O_PAGADA") {
+                    Alert.alert("Reserva Expirada", "Esta reserva caducó por inactividad y ha sido limpiada del sistema.");
+                    cargarBoletos(correoAuth, tokenAuth, filtroEstado);
+                } else if (response.data.mensaje === "SESION_EXPIRADA") {
+                    Alert.alert("Sesión Expirada", "Has iniciado sesión en otro dispositivo.");
+                    navigation.replace('Login');
+                } else {
+                    Alert.alert("Error", response.data.mensaje || "No se pudo cancelar la reserva.");
+                }
             }
         } catch (error) {
-            const msj = error.response?.data?.mensaje || "Error al cancelar la reserva.";
-            Alert.alert("Error", msj);
+            Alert.alert("Error", "Error de conexión al cancelar la reserva.");
+        } finally {
             setCargando(false);
         }
     };
 
-   // En src/screens/MisBoletos.js, reemplaza tu función renderBoleto por esta:
+    const renderBoleto = ({ item }) => {
+        const estadoStr = (item.estadoboleto || item.estado_boleto || item.estado || '').toUpperCase();
+        const codigoReserva = item.codigoreserva || item.codigo_reserva || item.codigo || '---';
+        const idBoleto = item.idboleto || item.id_boleto || item.id || ''; 
+        
+        // 🔥 SOLUCIÓN BUG 5: Atrapamos el ID_VUELO incluso si Oracle lo devuelve en mayúsculas
+        const idVuelo = item.ID_VUELO || item.IDVUELO || item.id_vuelo || item.idvuelo || item.id || ''; 
 
-const renderBoleto = ({ item }) => {
-    const estadoStr = (item.ESTADOBOLETO || item.EstadoBoleto || item.ESTADO_BOLETO || '').toUpperCase();
-    const codigoReserva = item.CODIGORESERVA || item.CodigoReserva || item.CODIGO_RESERVA;
-    const idBoleto = item.IDBOLETO || item.IdBoleto || item.ID_BOLETO; 
-    const idVuelo = item.IDVUELO || item.IdVuelo || item.ID_VUELO; 
+        let fechaSalidaCruda = item.fechasalida || item.fecha_salida || 'Sin Fecha';
+        let horaSalidaCruda = item.horasalida || item.hora_salida || '--:--';
+        
+        const asiento = item.asientoasignado || item.asiento_asignado || item.asiento || 'S/A';
+        const origen = item.origen || 'Origen';
+        const destino = item.destino || 'Destino';
+        const cabina = item.clasecabina || item.clase_cabina || item.cabina || 'N/A';
 
-    // Aquí extraemos las fechas de forma segura
-    let fechaSalidaCruda = item.FECHASALIDA || item.FechaSalida || item.FECHA_SALIDA || 'Sin Fecha';
-    let horaSalidaCruda = item.HORASALIDA || item.HoraSalida || item.HORA_SALIDA || '--:--';
-    
-    // 🔥 NUEVO: Buscamos el asiento
-const asiento = item.ASIENTO || item.asiento || item.ASIENTOASIGNADO || item.AsientoAsignado || item.ASIENTO_ASIGNADO || 'S/A';
-    const origen = item.ORIGEN || item.Origen || 'Origen';
-    const destino = item.DESTINO || item.Destino || 'Destino';
-    const cabina = item.CLASECABINA || item.ClaseCabina || item.CLASE_CABINA || 'N/A';
-
-    // Formateo de Fecha/Hora para limpiar la vista
-    if (fechaSalidaCruda.includes(' ')) {
-        const partes = fechaSalidaCruda.split(' ');
-        fechaSalidaCruda = partes[0]; // Solo la fecha
-        if (horaSalidaCruda === '--:--') {
-            horaSalidaCruda = partes[1].substring(0, 5); // Sacamos la hora del mismo string
+        if (fechaSalidaCruda.includes(' ')) {
+            const partes = fechaSalidaCruda.split(' ');
+            fechaSalidaCruda = partes[0]; 
+            if (horaSalidaCruda === '--:--') horaSalidaCruda = partes[1].substring(0, 5);
         }
-    }
 
-    let badgeStyle = styles.badgeReservado;
-    if (estadoStr === 'PAGADO') badgeStyle = styles.badgePagado;
-    if (estadoStr === 'CANCELADO') badgeStyle = styles.badgeCancelado;
+        let badgeStyle = styles.badgeReservado;
+        if (estadoStr === 'PAGADO') badgeStyle = styles.badgePagado;
+        if (estadoStr === 'CANCELADO') badgeStyle = styles.badgeCancelado;
 
-    return (
-        <TouchableOpacity 
-            style={styles.ticketCard}
-            activeOpacity={0.9}
-            onPress={() => {
-                if(idVuelo) {
-                    navigation.navigate('DetalleVuelo', { id: idVuelo });
-                }
-            }}
-        >
-            <View style={styles.ticketMain}>
-                <View style={styles.routeRow}>
-                    <Text style={styles.routeText}>{origen}</Text>
-                    <Text style={styles.flightIcon}>✈️</Text>
-                    <Text style={styles.routeText}>{destino}</Text>
-                </View>
-                
-                <View style={styles.detailsRow}>
-                    <View style={{ flex: 1.5 }}>
-                        <Text style={styles.ticketLabel}>FECHA</Text>
-                        <Text style={styles.ticketValue}>{fechaSalidaCruda}</Text>
+        return (
+            <TouchableOpacity 
+                style={styles.ticketCard}
+                activeOpacity={0.9}
+                onPress={() => { 
+                    if(idVuelo) {
+                        navigation.navigate('DetalleVuelo', { id: idVuelo }); 
+                    } else {
+                        Alert.alert("Aviso", "No hay detalles disponibles para este vuelo.");
+                    }
+                }}
+            >
+                <View style={styles.ticketMain}>
+                    <View style={styles.routeRow}>
+                        <Text style={styles.routeText}>{origen}</Text>
+                        <Text style={styles.flightIcon}>✈️</Text>
+                        <Text style={styles.routeText}>{destino}</Text>
                     </View>
-                    <View style={{ flex: 1 }}>
-                        <Text style={styles.ticketLabel}>HORA</Text>
-                        <Text style={styles.ticketValue}>{horaSalidaCruda}</Text>
+                    
+                    <View style={styles.detailsRow}>
+                        <View style={{ flex: 1.5 }}>
+                            <Text style={styles.ticketLabel}>FECHA</Text>
+                            <Text style={styles.ticketValue}>{fechaSalidaCruda}</Text>
+                        </View>
+                        <View style={{ flex: 1 }}>
+                            <Text style={styles.ticketLabel}>HORA</Text>
+                            <Text style={styles.ticketValue}>{horaSalidaCruda}</Text>
+                        </View>
                     </View>
-                </View>
-                
-                <View style={[styles.detailsRow, { marginTop: 10 }]}>
-                    <View style={{ flex: 1.5 }}>
-                        <Text style={styles.ticketLabel}>CABINA</Text>
-                        <Text style={[styles.ticketValue, { color: '#0d47a1' }]}>{cabina}</Text>
+                    
+                    <View style={[styles.detailsRow, { marginTop: 10 }]}>
+                        <View style={{ flex: 1.5 }}>
+                            <Text style={styles.ticketLabel}>CABINA</Text>
+                            <Text style={[styles.ticketValue, { color: '#0d47a1' }]}>{cabina}</Text>
+                        </View>
+                       <View style={{ flex: 1 }}>
+                            <Text style={styles.ticketLabel}>ASIENTO</Text>
+                            <Text style={[styles.ticketValue, { color: '#e65100' }]}>{asiento}</Text>
+                        </View>
                     </View>
-                   <View style={{ flex: 1 }}>
-                        <Text style={styles.ticketLabel}>ASIENTO</Text>
-                        <Text style={[styles.ticketValue, { color: '#e65100' }]}>
-                            {item.ASIENTOASIGNADO || item.AsientoAsignado || item.ASIENTO_ASIGNADO || 'S/A'}
-                        </Text>
-                    </View>
-                </View>
-            </View>
-
-            <View style={styles.ticketSide}>
-                <Text style={styles.ticketLabel}>LOCALIZADOR</Text>
-                <Text style={styles.locText}>{codigoReserva}</Text>
-
-                <Text style={styles.ticketLabel}>ESTADO</Text>
-                <View style={badgeStyle}>
-                    <Text style={styles.badgeText}>{estadoStr}</Text>
                 </View>
 
-                {estadoStr === 'RESERVADO' && (
-                    <>
-                        <TouchableOpacity style={styles.btnPagar} onPress={() => navigation.navigate('Pagos', { codigo: codigoReserva })}>
-                            <Text style={styles.btnPagarText}>💳 Pagar</Text>
+                <View style={styles.ticketSide}>
+                    <Text style={styles.ticketLabel}>LOCALIZADOR</Text>
+                    <Text style={styles.locText}>{codigoReserva}</Text>
+
+                    <Text style={styles.ticketLabel}>ESTADO</Text>
+                    <View style={badgeStyle}>
+                        <Text style={styles.badgeText}>{estadoStr}</Text>
+                    </View>
+
+                    {estadoStr === 'RESERVADO' && (
+                        <>
+                            <TouchableOpacity style={styles.btnPagar} onPress={() => navigation.navigate('Pagos', { codigo: codigoReserva })}>
+                                <Text style={styles.btnPagarText}>💳 Pagar</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={styles.btnCancelar} onPress={() => confirmarCancelacion(idBoleto)}>
+                                <Text style={styles.btnCancelarText}>❌ Cancelar</Text>
+                            </TouchableOpacity>
+                        </>
+                    )}
+
+                   {estadoStr === 'PAGADO' && (
+                        <TouchableOpacity style={styles.btnImprimir} onPress={() => navigation.navigate('PaseAbordar', { codigo: codigoReserva })}>
+                            <Text style={styles.btnImprimirText}>🖨️ Pase</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity style={styles.btnCancelar} onPress={() => confirmarCancelacion(idBoleto)}>
-                            <Text style={styles.btnCancelarText}>❌ Cancelar</Text>
-                        </TouchableOpacity>
-                    </>
-                )}
+                    )}
+                </View>
+            </TouchableOpacity>
+        );
+    };
 
-               {estadoStr === 'PAGADO' && (
-    <TouchableOpacity style={styles.btnImprimir} onPress={() => navigation.navigate('PaseAbordar', { codigo: codigoReserva, correo: correo })}>
-        <Text style={styles.btnImprimirText}>🖨️ Pase</Text>
-    </TouchableOpacity>
-)}
-            </View>
-        </TouchableOpacity>
-    );
-};
+    if (verificandoGuardia && boletos.length === 0) return <ActivityIndicator size="large" color="#0d47a1" style={{ marginTop: 50 }} />;
 
     return (
         <View style={styles.container}>
@@ -251,13 +257,11 @@ const styles = StyleSheet.create({
     headerTitle: { alignItems: 'center', marginVertical: 20 },
     mainTitle: { fontSize: 24, fontWeight: 'bold', color: '#333' },
     subTitle: { color: '#666', fontSize: 14 },
-    
     filterContainer: { paddingLeft: 15, marginBottom: 20 },
     filterChip: { paddingHorizontal: 20, paddingVertical: 8, borderRadius: 20, backgroundColor: '#e9ecef', marginRight: 10 },
     filterChipActive: { backgroundColor: '#0d47a1' },
     filterText: { color: '#495057', fontWeight: 'bold' },
     filterTextActive: { color: '#fff' },
-
     ticketCard: { backgroundColor: 'white', borderRadius: 12, marginBottom: 15, flexDirection: 'row', overflow: 'hidden', borderLeftWidth: 8, borderLeftColor: '#0d47a1', shadowColor: '#000', shadowOpacity: 0.1, elevation: 3 },
     ticketMain: { flex: 2, padding: 15 },
     routeRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 15 },
@@ -266,22 +270,18 @@ const styles = StyleSheet.create({
     detailsRow: { flexDirection: 'row', justifyContent: 'space-between' },
     ticketLabel: { fontSize: 10, color: '#888', fontWeight: 'bold', marginBottom: 2 },
     ticketValue: { fontSize: 14, fontWeight: 'bold', color: '#2c3e50' },
-
     ticketSide: { flex: 1, backgroundColor: '#f8f9fa', padding: 15, borderLeftWidth: 2, borderLeftColor: '#dee2e6', borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center' },
     locText: { fontSize: 18, fontWeight: 'bold', color: '#333', marginBottom: 10 },
-    
     badgeReservado: { backgroundColor: '#fff3e0', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10, marginBottom: 10 },
     badgePagado: { backgroundColor: '#e8f5e9', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10, marginBottom: 10 },
     badgeCancelado: { backgroundColor: '#ffebee', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10, marginBottom: 10 },
     badgeText: { fontWeight: 'bold', fontSize: 10 },
-
     btnPagar: { backgroundColor: '#27ae60', paddingVertical: 6, width: '100%', borderRadius: 5, alignItems: 'center', marginBottom: 5 },
     btnPagarText: { color: 'white', fontWeight: 'bold', fontSize: 12 },
     btnCancelar: { borderColor: '#e74c3c', borderWidth: 1, paddingVertical: 6, width: '100%', borderRadius: 5, alignItems: 'center' },
     btnCancelarText: { color: '#e74c3c', fontWeight: 'bold', fontSize: 12 },
     btnImprimir: { backgroundColor: '#0d47a1', paddingVertical: 6, width: '100%', borderRadius: 5, alignItems: 'center' },
     btnImprimirText: { color: 'white', fontWeight: 'bold', fontSize: 12 },
-
     emptyContainer: { alignItems: 'center', marginTop: 40 },
     emptyTitle: { fontSize: 18, fontWeight: 'bold', color: '#666', marginTop: 10 },
     emptySub: { color: '#999', marginBottom: 20 },

@@ -1,42 +1,39 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
-import { API_URL } from '../config'
-
+import { API_URL } from '../config';
+import { useGuardia } from '../hooks/useGuardia'; // 🔥 GUARDIA IMPORTADO
 
 const Equipaje = ({ navigation }) => {
-    const [correoUsuario, setCorreoUsuario] = useState('');
+    // 🔥 CONTRATAMOS AL GUARDIA
+    const { correoAuth, tokenAuth, verificandoGuardia } = useGuardia(navigation);
+
     const [cargandoInicial, setCargandoInicial] = useState(true);
     const [cargandoLista, setCargandoLista] = useState(false);
     const [guardando, setGuardando] = useState(false);
 
-    // Datos
     const [boletos, setBoletos] = useState([]);
     const [boletoSeleccionado, setBoletoSeleccionado] = useState('');
     const [maletas, setMaletas] = useState([]);
 
-    // Formulario
     const [peso, setPeso] = useState('');
     const [descripcion, setDescripcion] = useState('');
 
+    // 🔥 Esperamos al guardia antes de cargar
     useEffect(() => {
-        cargarBoletosDropdown();
-    }, []);
+        if (!verificandoGuardia && correoAuth && tokenAuth) {
+            cargarBoletosDropdown();
+        }
+    }, [verificandoGuardia, correoAuth, tokenAuth]);
 
-    // 1. Cargar el Dropdown al abrir la pantalla
     const cargarBoletosDropdown = async () => {
         try {
-            const email = await AsyncStorage.getItem('UserEmail');
-            if (!email) {
-                navigation.replace('Login');
-                return;
-            }
-            setCorreoUsuario(email);
-
-            // Ajusta la URL según cómo la hayas declarado en tus rutas de Node
-            const response = await axios.get(`${API_URL}/equipaje/boletos/${email}`);
+            const response = await axios.post(API_URL, {
+                accion: 'equipaje_boletos',
+                correo: correoAuth, // 🔥 Usamos datos seguros
+                token: tokenAuth
+            });
             if (response.data.success) {
                 setBoletos(response.data.boletos);
             }
@@ -48,16 +45,19 @@ const Equipaje = ({ navigation }) => {
         }
     };
 
-    // 2. Cuando cambia el Dropdown, cargamos las maletas de ese boleto
     const handleBoletoChange = async (codigo) => {
         setBoletoSeleccionado(codigo);
-        setMaletas([]); // Limpiamos la vista previa
-        
+        setMaletas([]); 
         if (!codigo) return;
 
         setCargandoLista(true);
         try {
-            const response = await axios.get(`${API_URL}/equipaje/lista/${codigo}`);
+            const response = await axios.post(API_URL, {
+                accion: 'equipaje_lista',
+                codigo_boleto: codigo,
+                correo: correoAuth,
+                token: tokenAuth
+            });
             if (response.data.success) {
                 setMaletas(response.data.equipaje);
             }
@@ -68,38 +68,38 @@ const Equipaje = ({ navigation }) => {
         }
     };
 
-    // 3. Registrar nueva maleta
     const agregarMaleta = async () => {
-        if (!boletoSeleccionado) {
-            Alert.alert("Atención", "Selecciona una reserva primero."); return;
-        }
-        if (!peso || !descripcion) {
-            Alert.alert("Atención", "Ingresa el peso y la descripción de la maleta."); return;
-        }
+        if (!boletoSeleccionado) { Alert.alert("Atención", "Selecciona una reserva primero."); return; }
+        if (!peso || !descripcion) { Alert.alert("Atención", "Ingresa el peso y la descripción."); return; }
 
         setGuardando(true);
         try {
-            const response = await axios.post(`${API_URL}/equipaje/registrar`, {
+            const response = await axios.post(API_URL, {
+                accion: 'equipaje_registrar',
                 codigo_boleto: boletoSeleccionado,
                 peso: peso,
-                descripcion: descripcion
+                descripcion: descripcion,
+                correo: correoAuth,
+                token: tokenAuth
             });
 
             if (response.data.success) {
                 Alert.alert("¡Éxito!", "Maleta registrada correctamente. 🧳");
                 setPeso('');
                 setDescripcion('');
-                handleBoletoChange(boletoSeleccionado); // Recargamos la lista
+                handleBoletoChange(boletoSeleccionado);
+            } else {
+                Alert.alert("Error", response.data.mensaje || "No se pudo registrar la maleta.");
             }
         } catch (error) {
-            const msj = error.response?.data?.mensaje || "Error al registrar la maleta.";
-            Alert.alert("Error", msj);
+            Alert.alert("Error de conexión", "Error al conectar con el servidor.");
         } finally {
             setGuardando(false);
         }
     };
 
-    if (cargandoInicial) {
+    // 🔥 Pantalla de carga mientras el guardia revisa
+    if (verificandoGuardia || cargandoInicial) {
         return (
             <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
                 <ActivityIndicator size="large" color="#ff9800" />
@@ -120,54 +120,33 @@ const Equipaje = ({ navigation }) => {
             <ScrollView contentContainerStyle={{ padding: 20 }}>
                 <View style={styles.mainCard}>
                     <Text style={styles.mainTitle}>Documentación</Text>
-                    <Text style={styles.subTitle}>Registra tus maletas antes de llegar al aeropuerto para agilizar tu abordaje.</Text>
+                    <Text style={styles.subTitle}>Registra tus maletas antes de llegar al aeropuerto.</Text>
 
-                    {/* SELECCIÓN DE RESERVA */}
                     <View style={styles.selectBox}>
                         <Text style={styles.label}>1. Selecciona tu Reserva</Text>
                         <View style={styles.pickerContainer}>
                             <Picker
                                 selectedValue={boletoSeleccionado}
-                                onValueChange={(itemValue) => handleBoletoChange(itemValue)}
+                                onValueChange={handleBoletoChange}
                                 dropdownIconColor="#0d47a1"
                             >
                                 <Picker.Item label="-- Selecciona una de tus reservas --" value="" color="#888" />
                                 {boletos.map((b, index) => (
-                                    <Picker.Item 
-                                        key={index} 
-                                        label={b.DESCRIPCION_BOLETO || b.descripcion_boleto} 
-                                        value={b.CODIGO_BOLETO || b.codigo_boleto} 
-                                    />
+                                    <Picker.Item key={index} label={b.DESCRIPCION_BOLETO || b.descripcion_boleto} value={b.CODIGO_BOLETO || b.codigo_boleto} />
                                 ))}
                             </Picker>
                         </View>
                     </View>
 
-                    {/* ZONA INFERIOR (Solo visible si eligió un boleto) */}
                     {boletoSeleccionado !== '' && (
                         <View style={styles.gestionContainer}>
-                            
-                            {/* FORMULARIO */}
                             <Text style={[styles.sectionTitle, { color: '#ff9800' }]}>2. Agregar Nueva Maleta</Text>
                             
                             <Text style={styles.inputLabel}>Peso Aproximado (Libras)</Text>
-                            <TextInput 
-                                style={styles.input} 
-                                placeholder="Ej: 45.5" 
-                                keyboardType="numeric"
-                                value={peso}
-                                onChangeText={setPeso}
-                            />
+                            <TextInput style={styles.input} placeholder="Ej: 45.5" keyboardType="numeric" value={peso} onChangeText={setPeso} />
 
                             <Text style={styles.inputLabel}>Descripción</Text>
-                            <TextInput 
-                                style={[styles.input, { height: 80, textAlignVertical: 'top' }]} 
-                                placeholder="Ej: Maleta roja grande marca Samsonite" 
-                                multiline={true}
-                                numberOfLines={3}
-                                value={descripcion}
-                                onChangeText={setDescripcion}
-                            />
+                            <TextInput style={[styles.input, { height: 80, textAlignVertical: 'top' }]} placeholder="Ej: Maleta roja..." multiline={true} numberOfLines={3} value={descripcion} onChangeText={setDescripcion} />
 
                             <TouchableOpacity style={styles.btnWarning} onPress={agregarMaleta} disabled={guardando}>
                                 {guardando ? <ActivityIndicator color="#424242" /> : <Text style={styles.btnWarningText}>Registrar Maleta ➕</Text>}
@@ -175,7 +154,6 @@ const Equipaje = ({ navigation }) => {
 
                             <View style={styles.divider} />
 
-                            {/* LISTA DE MALETAS */}
                             <Text style={[styles.sectionTitle, { color: '#0d47a1' }]}>3. Tu Equipaje Documentado</Text>
                             
                             {cargandoLista ? (
@@ -183,7 +161,7 @@ const Equipaje = ({ navigation }) => {
                             ) : maletas.length === 0 ? (
                                 <View style={styles.emptyBox}>
                                     <Text style={{ fontSize: 40, opacity: 0.5 }}>👜</Text>
-                                    <Text style={styles.emptyText}>Aún no has registrado equipaje para este vuelo.</Text>
+                                    <Text style={styles.emptyText}>Aún no has registrado equipaje.</Text>
                                 </View>
                             ) : (
                                 maletas.map((m, index) => (
@@ -196,10 +174,8 @@ const Equipaje = ({ navigation }) => {
                                     </View>
                                 ))
                             )}
-
                         </View>
                     )}
-
                 </View>
             </ScrollView>
         </View>
@@ -212,28 +188,21 @@ const styles = StyleSheet.create({
     topBarTitle: { color: 'white', fontSize: 18, fontWeight: 'bold' },
     btnVolver: { borderColor: 'white', borderWidth: 1, paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20 },
     btnVolverText: { color: 'white', fontWeight: 'bold', fontSize: 12 },
-    
     mainCard: { backgroundColor: 'white', borderRadius: 15, padding: 20, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 10, elevation: 3, borderTopWidth: 5, borderTopColor: '#ff9800', marginBottom: 30 },
     mainTitle: { fontSize: 24, fontWeight: 'bold', color: '#ff9800', textAlign: 'center' },
     subTitle: { fontSize: 14, color: '#666', textAlign: 'center', marginBottom: 20 },
-    
     selectBox: { backgroundColor: '#f8f9fa', padding: 15, borderRadius: 10, borderWidth: 1, borderColor: '#dee2e6', marginBottom: 20 },
     label: { fontSize: 14, fontWeight: 'bold', color: '#6c757d', marginBottom: 10 },
     pickerContainer: { backgroundColor: 'white', borderRadius: 8, borderWidth: 1, borderColor: '#ced4da', overflow: 'hidden' },
-
     gestionContainer: { paddingTop: 10 },
     sectionTitle: { fontSize: 16, fontWeight: 'bold', marginBottom: 15 },
     inputLabel: { fontSize: 12, fontWeight: 'bold', color: '#6c757d', marginBottom: 5 },
     input: { backgroundColor: '#fff', height: 45, borderRadius: 8, borderWidth: 1, borderColor: '#ced4da', paddingHorizontal: 15, marginBottom: 15 },
-    
     btnWarning: { backgroundColor: '#ffc107', height: 50, borderRadius: 8, justifyContent: 'center', alignItems: 'center', shadowColor: '#ffc107', shadowOpacity: 0.3, elevation: 4 },
     btnWarningText: { color: '#424242', fontWeight: 'bold', fontSize: 16 },
-
     divider: { height: 1, backgroundColor: '#eee', marginVertical: 25 },
-
     emptyBox: { alignItems: 'center', paddingVertical: 20 },
     emptyText: { color: '#999', marginTop: 10, textAlign: 'center' },
-
     baggageItem: { backgroundColor: '#fff8e1', borderColor: '#ffe082', borderWidth: 1, borderLeftWidth: 5, borderLeftColor: '#ffb300', borderRadius: 8, padding: 15, marginBottom: 15, flexDirection: 'row', alignItems: 'center' },
     baggageIcon: { fontSize: 30, marginRight: 15 },
     bagTitle: { fontWeight: 'bold', color: '#333', fontSize: 14 },

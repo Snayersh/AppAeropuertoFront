@@ -25,28 +25,32 @@ const Registro = ({ navigation }) => {
 
         setCargando(true);
         try {
-            // Apuntamos a la ruta de clientes que armamos en Node
-     // 🔥 CAMBIO AQUÍ: Cambiamos /clientes/ por /auth/
-            const response = await axios.post(`${API_URL}/auth/registrar`, {
+            // 🔥 CAMBIO: Apuntamos al Cerebro usando la accion 'registrar_usuario'
+          // 🔥 CAMBIO: Apuntamos al Cerebro usando la accion 'registrar_usuario'
+            const response = await axios.post(API_URL, {
+                accion: 'registrar_usuario',
                 primer_nombre: primerNombre,
                 primer_apellido: primerApellido,
                 pasaporte: pasaporte,
                 telefono: telefono,
                 pais: pais,
-                correo: correo,
-                password_hash: password // Node lo va a encriptar
+                // Limpiamos espacios y pasamos a minúsculas al momento de enviar
+                correo: correo.trim().toLowerCase(), 
+                password: password 
             });
 
             if (response.data.success) {
                 Alert.alert(
                     "¡Bienvenido! 🎉", 
-                    "Tu cuenta ha sido creada exitosamente. Revisa tu correo para activarla (si aplica).",
+                    "Tu cuenta ha sido creada exitosamente. Revisa tu correo para activarla.",
                     [{ text: "Ir al Login", onPress: () => navigation.navigate('Login') }]
                 );
+            } else {
+                Alert.alert("Error", response.data.mensaje || "No se pudo crear la cuenta.");
             }
         } catch (error) {
             const msj = error.response?.data?.mensaje || "Error al conectar con el servidor.";
-            Alert.alert("Error de Registro", msj);
+            Alert.alert("Error de Conexión", msj);
         } finally {
             setCargando(false);
         }

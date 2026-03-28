@@ -15,7 +15,7 @@ import DetalleFactura from './src/screens/DetalleFactura'
 import DetalleVuelo from './src/screens/DetalleVuelo'
 import MisFacturas from './src/screens/MisFacturas'
 import PaseAbordar from './src/screens/PaseAbordar';
-
+import RecuperarPassword from './src/screens/RecuperarPassword';
 const Stack = createStackNavigator();
 
 export default function App() {
@@ -34,7 +34,8 @@ export default function App() {
         <Stack.Screen name="DetalleFactura" component={DetalleFactura} />
         <Stack.Screen name="DetalleVuelo" component={DetalleVuelo} />
         <Stack.Screen name="MisFacturas" component={MisFacturas} />
-<Stack.Screen name="PaseAbordar" component={PaseAbordar} />
+        <Stack.Screen name="PaseAbordar" component={PaseAbordar} />
+        <Stack.Screen name="RecuperarPassword" component={RecuperarPassword} />
       </Stack.Navigator>
     </NavigationContainer>
   );

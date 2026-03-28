@@ -15,25 +15,27 @@ const RecuperarPassword = ({ navigation }) => {
 
         setCargando(true);
         try {
-            // Le pegamos a la ruta nueva que creamos en Node
-            const response = await axios.post(`${API_URL}/auth/recuperar-password`, {
+            // 🔥 CAMBIO: Apuntamos al Cerebro indicando la acción
+            const response = await axios.post(API_URL, {
+                accion: 'recuperar_password',
                 correo: correo
             });
 
             if (response.data.success) {
-                Alert.alert("¡Enviado!", response.data.mensaje, [
+                Alert.alert("¡Enviado!", response.data.mensaje || "Revisa tu bandeja de entrada.", [
                     { text: "OK", onPress: () => navigation.navigate('Login') }
                 ]);
+            } else {
+                Alert.alert("Aviso", response.data.mensaje || "No se encontró el correo.");
             }
         } catch (error) {
             console.log("Error al solicitar recuperación:", error);
-            const msjError = error.response?.data?.mensaje || "Error al procesar la solicitud.";
-            Alert.alert("Aviso", msjError);
+            const msjError = error.response?.data?.mensaje || "Error al conectar con el servidor.";
+            Alert.alert("Error de Conexión", msjError);
         } finally {
             setCargando(false);
         }
     };
-
     return (
         <View style={styles.container}>
             <View style={styles.card}>

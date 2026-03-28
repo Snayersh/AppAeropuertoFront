@@ -1,2 +1,3 @@
-// src/config.js
-export const API_URL = 'https://192.168.0.31:44356/ApiMovil.ashx';
+import axios from 'axios';
+export const API_URL = 'https://tinley-sultanic-brendon.ngrok-free.dev/ApiMovil.ashx';
+axios.defaults.headers.common['Bypass-Tunnel-Reminder'] = 'true';

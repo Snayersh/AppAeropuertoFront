@@ -1,40 +1,33 @@
 import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, FlatList } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
-import { API_URL } from '../config'
-
-
+import { API_URL } from '../config';
+import { useGuardia } from '../hooks/useGuardia'; // 🔥 GUARDIA IMPORTADO
 
 const MisFacturas = ({ navigation }) => {
+    // 🔥 CONTRATAMOS AL GUARDIA
+    const { correoAuth, tokenAuth, verificandoGuardia } = useGuardia(navigation);
+
     const [facturas, setFacturas] = useState([]);
     const [cargando, setCargando] = useState(true);
 
     useFocusEffect(
         useCallback(() => {
-            obtenerSesionYCargar();
-        }, [])
+            if (!verificandoGuardia && correoAuth && tokenAuth) {
+                cargarFacturas(correoAuth, tokenAuth);
+            }
+        }, [verificandoGuardia, correoAuth, tokenAuth])
     );
 
-    const obtenerSesionYCargar = async () => {
-        try {
-            const email = await AsyncStorage.getItem('UserEmail');
-            if (!email) {
-                navigation.replace('Login');
-                return;
-            }
-            cargarFacturas(email);
-        } catch (error) {
-            console.log("Error leyendo sesión", error);
-        }
-    };
-
-    const cargarFacturas = async (emailUsuario) => {
+    const cargarFacturas = async (emailUsuario, tokenUsuario) => {
         setCargando(true);
         try {
-            // Hacemos la petición a la API (asegúrate de tener esta ruta en tu Node.js)
-            const response = await axios.get(`${API_URL}/pagos/mis-facturas/${emailUsuario}`);
+            const response = await axios.post(API_URL, {
+                accion: 'mis_facturas',
+                correo: emailUsuario,
+                token: tokenUsuario
+            });
             if (response.data.success) {
                 setFacturas(response.data.facturas);
             } else {
@@ -49,15 +42,12 @@ const MisFacturas = ({ navigation }) => {
     };
 
     const renderFactura = ({ item }) => {
-        // Adaptamos las variables como vengan de Oracle (TODO PEGADO o con guiones)
-      // 🔥 Agregamos las versiones en minúscula para hacer match perfecto con la BD
         const idFactura = item.IDFACTURA || item.IdFactura || item.id_factura || item.ID_FACTURA;
         const numeroFactura = item.NUMEROFACTURA || item.NumeroFactura || item.numero_factura || item.NUMERO_FACTURA;
         const fechaEmision = item.FECHAEMISION || item.FechaEmision || item.fecha_emision || item.FECHA_EMISION || 'Sin fecha';
         const total = item.TOTAL || item.total || 0;
         const estado = (item.ESTADO || item.estado || '').toUpperCase();
 
-        // Limpiamos la fecha por si viene con horas pegadas
         let fechaMostrar = fechaEmision;
         if (typeof fechaMostrar === 'string' && fechaMostrar.includes(' ')) {
             fechaMostrar = fechaMostrar.split(' ')[0];
@@ -90,7 +80,6 @@ const MisFacturas = ({ navigation }) => {
                     </View>
                 </View>
 
-                {/* BOTÓN PARA VER EL DETALLE PDF/FACTURA */}
                 <TouchableOpacity 
                     style={styles.btnDetalle} 
                     onPress={() => navigation.navigate('DetalleFactura', { id_factura: idFactura })}
@@ -100,6 +89,8 @@ const MisFacturas = ({ navigation }) => {
             </View>
         );
     };
+
+    if (verificandoGuardia && facturas.length === 0) return <ActivityIndicator size="large" color="#0d47a1" style={{ marginTop: 50 }} />;
 
     return (
         <View style={styles.container}>
@@ -148,23 +139,18 @@ const styles = StyleSheet.create({
     headerTitle: { alignItems: 'center', marginVertical: 20 },
     mainTitle: { fontSize: 24, fontWeight: 'bold', color: '#333' },
     subTitle: { color: '#666', fontSize: 14, textAlign: 'center', paddingHorizontal: 20 },
-    
     invoiceCard: { backgroundColor: 'white', borderRadius: 15, padding: 20, marginBottom: 15, borderTopWidth: 5, borderTopColor: '#00796b', shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 10, elevation: 4 },
     invoiceHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', borderBottomWidth: 1, borderBottomColor: '#eee', paddingBottom: 15, marginBottom: 15 },
     label: { fontSize: 10, color: '#888', fontWeight: 'bold', letterSpacing: 1, marginBottom: 5 },
     invoiceNumber: { fontSize: 18, fontWeight: 'bold', color: '#0d47a1' },
-    
     badgePagado: { backgroundColor: '#e8f5e9', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
     badgeAnulado: { backgroundColor: '#ffebee', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
     badgeText: { fontWeight: 'bold', fontSize: 10, color: '#333' },
-
     invoiceBody: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 },
     value: { fontSize: 16, fontWeight: 'bold', color: '#333' },
     totalText: { fontSize: 18, fontWeight: 'bold', color: '#2e7d32' },
-
     btnDetalle: { borderColor: '#0d47a1', borderWidth: 1, borderRadius: 25, paddingVertical: 10, alignItems: 'center' },
     btnDetalleText: { color: '#0d47a1', fontWeight: 'bold', fontSize: 14 },
-
     emptyContainer: { alignItems: 'center', marginTop: 40, paddingHorizontal: 20 },
     emptyTitle: { fontSize: 18, fontWeight: 'bold', color: '#666', marginTop: 10, textAlign: 'center' },
     emptySub: { color: '#999', marginBottom: 20, textAlign: 'center' },

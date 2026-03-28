@@ -4,8 +4,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import { API_URL } from '../config'
 
-
-
 const Login = ({ navigation, route }) => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -17,7 +15,7 @@ const Login = ({ navigation, route }) => {
     const [mensajeError, setMensajeError] = useState('');
 
     useEffect(() => {
-        // Magia: Detecta si viene de la pantalla de registro (igual que tu Request.QueryString)
+        // Magia: Detecta si viene de la pantalla de registro
         if (route.params?.registro === 'exitoso') {
             setMensajeExito('¡Registro Exitoso! 🎉 Revisa tu correo para activar tu cuenta.');
         }
@@ -27,7 +25,10 @@ const Login = ({ navigation, route }) => {
         setMensajeExito('');
         setMensajeError('');
 
-        if (!email.trim() || !password.trim()) {
+        const correoLimpio = email.trim().toLowerCase();
+        const passwordLimpia = password.trim();
+
+        if (!correoLimpio || !passwordLimpia) {
             setMensajeError('Por favor, ingrese correo y contraseña.');
             return;
         }
@@ -35,28 +36,44 @@ const Login = ({ navigation, route }) => {
         setCargando(true);
 
         try {
-            const response = await axios.post(`${API_URL}/auth/login`, {
-                correo: email,
-                password: password
+            const response = await axios.post(API_URL, {
+                accion: 'login',
+                correo: correoLimpio,
+                password: passwordLimpia 
+            }, {
+                // 🔥 PASE VIP OBLIGATORIO (ACTUALIZADO PARA NGROK / LOCALTUNNEL) 🔥
+                headers: {
+                    'ngrok-skip-browser-warning': 'true', 
+                    'Bypass-Tunnel-Reminder': 'true',     
+                    'Content-Type': 'application/json'
+                }
             });
 
             if (response.data.success) {
                 const user = response.data.usuario;
-                
-                // Guardamos la "Sesión" en el teléfono
+                const token = response.data.token_sesion; // 🔥 ATRAPAMOS EL NUEVO TOKEN DE SEGURIDAD
+
+                // Guardamos todo en la bóveda del teléfono
                 await AsyncStorage.setItem('UserName', user.nombre);
                 await AsyncStorage.setItem('UserEmail', user.correo);
                 await AsyncStorage.setItem('UserRole', user.rol.toString());
+                
+                // 🔥 GUARDAMOS EL TOKEN PARA USARLO EN LAS OTRAS PANTALLAS
+                if (token) {
+                    await AsyncStorage.setItem('UserToken', token);
+                }
 
-                // Lo mandamos al Inicio
-                navigation.navigate('Inicio');
+                navigation.replace('Inicio'); // Usamos replace para que no puedan darle "atrás" y volver al login
+            } else {
+                // Si está bloqueado temporalmente o la clave es incorrecta, el backend nos manda el texto exacto aquí:
+                setMensajeError(response.data.mensaje || 'Credenciales inválidas.');
             }
         } catch (error) {
-            // Atrapamos los errores de CREDENCIALES_INVALIDAS, etc.
+            console.log("Error detallado:", error); 
             if (error.response && error.response.data) {
-                setMensajeError(error.response.data.mensaje);
+                setMensajeError(error.response.data.mensaje || 'Error del servidor');
             } else {
-                setMensajeError('Error de conexión con el servidor.');
+                setMensajeError('Error de red. Verifica Localtunnel / Ngrok.');
             }
         } finally {
             setCargando(false);
@@ -69,7 +86,6 @@ const Login = ({ navigation, route }) => {
             style={styles.background}
             resizeMode="cover"
         >
-            {/* Capa oscura sobre la imagen */}
             <View style={styles.overlay} />
 
             <View style={styles.card}>
@@ -78,14 +94,12 @@ const Login = ({ navigation, route }) => {
                     <Text style={styles.subtitle}>Aeropuerto Internacional La Aurora</Text>
                 </View>
 
-                {/* Panel de Éxito */}
                 {mensajeExito !== '' && (
                     <View style={styles.pnlExito}>
                         <Text style={styles.textExito}>{mensajeExito}</Text>
                     </View>
                 )}
 
-                {/* Panel de Error */}
                 {mensajeError !== '' && (
                     <View style={styles.pnlError}>
                         <Text style={styles.textError}>{mensajeError}</Text>
@@ -113,14 +127,13 @@ const Login = ({ navigation, route }) => {
                         value={password}
                         onChangeText={setPassword}
                     />
-                    {/* 🔥 FILA NUEVA: Olvidé mi clave + Mostrar contraseña */}
+                    
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8, paddingHorizontal: 5 }}>
                         <TouchableOpacity onPress={() => navigation.navigate('RecuperarPassword')}>
                             <Text style={{ color: '#0d47a1', fontSize: 13, fontWeight: 'bold' }}>
                                 ¿Olvidaste tu contraseña?
                             </Text>
                         </TouchableOpacity>
-
                         <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
                             <Text style={{ color: '#6c757d', fontSize: 13 }}>
                                 {showPassword ? 'Ocultar' : 'Mostrar'}
@@ -141,12 +154,12 @@ const Login = ({ navigation, route }) => {
                     )}
                 </TouchableOpacity>
 
-<View style={styles.footerRow}>
-    <Text style={styles.mutedText}>¿No tienes cuenta? </Text>
-    <TouchableOpacity onPress={() => navigation.navigate('Registro')}> 
-        <Text style={styles.linkText}>Regístrate aquí</Text>
-    </TouchableOpacity>
-</View>
+                <View style={styles.footerRow}>
+                    <Text style={styles.mutedText}>¿No tienes cuenta? </Text>
+                    <TouchableOpacity onPress={() => navigation.navigate('Registro')}> 
+                        <Text style={styles.linkText}>Regístrate aquí</Text>
+                    </TouchableOpacity>
+                </View>
 
                 <TouchableOpacity style={{ marginTop: 20 }} onPress={() => navigation.navigate('Inicio')}>
                     <Text style={styles.linkBack}>← Volver al inicio</Text>
@@ -169,8 +182,8 @@ const styles = StyleSheet.create({
     subtitle: { fontSize: 14, color: '#6c757d', marginTop: 5 },
     pnlExito: { backgroundColor: '#e8f5e9', borderLeftWidth: 5, borderLeftColor: '#2e7d32', padding: 15, borderRadius: 8, marginBottom: 20 },
     textExito: { color: '#2e7d32', fontWeight: 'bold', textAlign: 'center' },
-    pnlError: { backgroundColor: '#ffebee', padding: 15, borderRadius: 8, marginBottom: 20 },
-    textError: { color: '#c62828', fontWeight: 'bold', textAlign: 'center' },
+    pnlError: { backgroundColor: '#cea4aa', padding: 15, borderRadius: 8, marginBottom: 20 },
+    textError: { color: '#bd7474', fontWeight: 'bold', textAlign: 'center' },
     inputGroup: { marginBottom: 20 },
     label: { fontSize: 14, fontWeight: 'bold', color: '#6c757d', marginBottom: 5 },
     input: { height: 50, backgroundColor: '#fff', borderRadius: 10, borderWidth: 1, borderColor: '#ced4da', paddingHorizontal: 15, fontSize: 16 },
