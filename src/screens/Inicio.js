@@ -4,7 +4,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import VueloCard from '../components/VueloCard';
-import { API_URL } from '../config'
+import { API_URL } from '../config';
 
 const Inicio = ({ navigation }) => {
     const [estadisticas, setEstadisticas] = useState({ activos: 0, llegadas: 0, salidas: 0 });
@@ -12,7 +12,7 @@ const Inicio = ({ navigation }) => {
     const [cargando, setCargando] = useState(true);
     const [usuario, setUsuario] = useState(null);
 
-    // 🔥 TUS FILTROS (Mantenidos idénticos)
+    // 🔥 FILTROS
     const [filtrosTipo, setFiltrosTipo] = useState({ llegada: true, salida: true });
     const [filtrosEstado, setFiltrosEstado] = useState({
         programado: true,
@@ -63,14 +63,22 @@ const Inicio = ({ navigation }) => {
     const cargarDatos = async () => {
         setCargando(true);
         try {
-            const resStats = await axios.post(API_URL, { accion: 'radar_estadisticas' });
-            if (resStats.data.success) setEstadisticas(resStats.data.data);
+            // 🔥 Ajuste 1 y 2: UNA SOLA LLAMADA para traer estadísticas y tabla en un solo viaje
+            const formData = new FormData();
+            formData.append('action', 'radar_vuelos');
 
-            const resRadar = await axios.post(API_URL, { accion: 'radar_vivo' });    
-            if (resRadar.data.success) {
-                const vuelosFormateados = resRadar.data.vuelos.map(v => {
+            const response = await axios.post(API_URL, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            
+            if (response.data.success) {
+                // Llenamos las estadísticas
+                setEstadisticas(response.data.estadisticas);
+
+                // 🔥 Ajuste 3: Mapeo limpio usando solo las variables en minúsculas de nuestro nuevo Backend
+                const vuelosFormateados = response.data.radar_vuelos.map(v => {
                     
-                    let fechaRaw = v.fecha_salida || v.horaprogramada || v.hora_programada || '';
+                    let fechaRaw = v.fecha_salida || '';
                     let horaMostrar = '--:--';
                     
                     if (fechaRaw) {
@@ -81,20 +89,19 @@ const Inicio = ({ navigation }) => {
                     }
 
                     return {
-                        // 🔥 ÚNICO CAMBIO: Aseguramos que el ID se capture de cualquier variante de Oracle
-                        id: v.id_vuelo || v.ID_VUELO || v.idvuelo || v.IDVUELO || v.id || 0, 
-                        numero_vuelo: v.codigo_vuelo || v.CODIGO_VUELO || v.numerovuelo || 'N/A',
-                        aerolinea: v.aerolinea || v.AEROLINEA || 'La Aurora',
-                        tipo: (String(v.es_llegada || v.esllegada || v.ES_LLEGADA) === '1') ? 'Llegada' : 'Salida',
-                        ruta: v.origendestino || v.ORIGENDESTINO || (v.origen_iata ? `${v.origen_iata} ➔ ${v.destino_iata}` : 'Ruta'),
+                        id: v.id_vuelo || 0, 
+                        numero_vuelo: v.codigo_vuelo || 'N/A',
+                        aerolinea: v.aerolinea || 'La Aurora',
+                        tipo: (String(v.es_llegada) === '1') ? 'Llegada' : 'Salida', // Depende de cómo lo maneje tu SP
+                        ruta: (v.origen_iata && v.destino_iata) ? `${v.origen_iata} ➔ ${v.destino_iata}` : 'Ruta',
                         hora: horaMostrar, 
-                        estado: String(v.estado_vuelo || v.ESTADO_VUELO || v.estado || v.ESTADO || '').toUpperCase().trim() 
+                        estado: String(v.estado_vuelo || '').toUpperCase().trim() 
                     };
                 });
                 setVuelos(vuelosFormateados);
             }
         } catch (error) {
-            console.log("Error cargando datos:", error);
+            console.log("Error cargando datos del radar:", error);
         } finally {
             setCargando(false);
         }

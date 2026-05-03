@@ -3,7 +3,7 @@ import { View, Text, TextInput, StyleSheet, ScrollView, TouchableOpacity, Activi
 import { Picker } from '@react-native-picker/picker';
 import axios from 'axios';
 import { API_URL } from '../config';
-import { useGuardia } from '../hooks/useGuardia'; // 🔥 GUARDIA IMPORTADO
+import { useGuardia } from '../hooks/useGuardia';
 
 const Equipaje = ({ navigation }) => {
     // 🔥 CONTRATAMOS AL GUARDIA
@@ -17,6 +17,7 @@ const Equipaje = ({ navigation }) => {
     const [boletoSeleccionado, setBoletoSeleccionado] = useState('');
     const [maletas, setMaletas] = useState([]);
 
+    const [tipoEquipaje, setTipoEquipaje] = useState('');
     const [peso, setPeso] = useState('');
     const [descripcion, setDescripcion] = useState('');
 
@@ -29,11 +30,15 @@ const Equipaje = ({ navigation }) => {
 
     const cargarBoletosDropdown = async () => {
         try {
-            const response = await axios.post(API_URL, {
-                accion: 'equipaje_boletos',
-                correo: correoAuth, // 🔥 Usamos datos seguros
-                token: tokenAuth
+            // 🔥 Ajuste 1: FormData y action correcta
+            const formData = new FormData();
+            formData.append('action', 'boletos_equipaje');
+            formData.append('email', correoAuth);
+
+            const response = await axios.post(API_URL, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
             });
+
             if (response.data.success) {
                 setBoletos(response.data.boletos);
             }
@@ -52,12 +57,15 @@ const Equipaje = ({ navigation }) => {
 
         setCargandoLista(true);
         try {
-            const response = await axios.post(API_URL, {
-                accion: 'equipaje_lista',
-                codigo_boleto: codigo,
-                correo: correoAuth,
-                token: tokenAuth
+            // 🔥 Ajuste 2: FormData y action correcta
+            const formData = new FormData();
+            formData.append('action', 'listar_equipaje');
+            formData.append('codigoBoleto', codigo);
+
+            const response = await axios.post(API_URL, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
             });
+
             if (response.data.success) {
                 setMaletas(response.data.equipaje);
             }
@@ -70,23 +78,28 @@ const Equipaje = ({ navigation }) => {
 
     const agregarMaleta = async () => {
         if (!boletoSeleccionado) { Alert.alert("Atención", "Selecciona una reserva primero."); return; }
+        if (!tipoEquipaje) { Alert.alert("Atención", "Selecciona el Tipo de Equipaje."); return; }
         if (!peso || !descripcion) { Alert.alert("Atención", "Ingresa el peso y la descripción."); return; }
 
         setGuardando(true);
         try {
-            const response = await axios.post(API_URL, {
-                accion: 'equipaje_registrar',
-                codigo_boleto: boletoSeleccionado,
-                peso: peso,
-                descripcion: descripcion,
-                correo: correoAuth,
-                token: tokenAuth
+            // 🔥 Ajuste 3: FormData y nombres de parámetros idénticos a ApiMovil.ashx
+            const formData = new FormData();
+            formData.append('action', 'registrar_equipaje');
+            formData.append('codigoBoleto', boletoSeleccionado);
+            formData.append('peso', peso);
+            formData.append('descripcion', descripcion);
+            formData.append('idTipo', tipoEquipaje);
+
+            const response = await axios.post(API_URL, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
             });
 
             if (response.data.success) {
-                Alert.alert("¡Éxito!", "Maleta registrada correctamente. 🧳");
+                Alert.alert("Detalle de Registro", response.data.mensaje || "Maleta registrada correctamente. 🧳");
                 setPeso('');
                 setDescripcion('');
+                setTipoEquipaje(''); 
                 handleBoletoChange(boletoSeleccionado);
             } else {
                 Alert.alert("Error", response.data.mensaje || "No se pudo registrar la maleta.");
@@ -98,7 +111,6 @@ const Equipaje = ({ navigation }) => {
         }
     };
 
-    // 🔥 Pantalla de carga mientras el guardia revisa
     if (verificandoGuardia || cargandoInicial) {
         return (
             <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
@@ -131,8 +143,9 @@ const Equipaje = ({ navigation }) => {
                                 dropdownIconColor="#0d47a1"
                             >
                                 <Picker.Item label="-- Selecciona una de tus reservas --" value="" color="#888" />
+                                {/* 🔥 Ajuste 4: Solo variables en minúsculas */}
                                 {boletos.map((b, index) => (
-                                    <Picker.Item key={index} label={b.DESCRIPCION_BOLETO || b.descripcion_boleto} value={b.CODIGO_BOLETO || b.codigo_boleto} />
+                                    <Picker.Item key={index} label={b.descripcion_boleto} value={b.codigo_boleto} />
                                 ))}
                             </Picker>
                         </View>
@@ -142,6 +155,20 @@ const Equipaje = ({ navigation }) => {
                         <View style={styles.gestionContainer}>
                             <Text style={[styles.sectionTitle, { color: '#ff9800' }]}>2. Agregar Nueva Maleta</Text>
                             
+                            <Text style={styles.inputLabel}>Tipo de Equipaje</Text>
+                            <View style={[styles.pickerContainer, { marginBottom: 15 }]}>
+                                <Picker
+                                    selectedValue={tipoEquipaje}
+                                    onValueChange={(itemValue) => setTipoEquipaje(itemValue)}
+                                    dropdownIconColor="#6c757d"
+                                >
+                                    <Picker.Item label="-- Seleccionar --" value="" color="#888" />
+                                    <Picker.Item label="Maleta de Bodega (Documentada)" value="1" />
+                                    <Picker.Item label="Equipaje de Mano (Cabina)" value="2" />
+                                    <Picker.Item label="Artículo Personal (Mochila)" value="3" />
+                                </Picker>
+                            </View>
+
                             <Text style={styles.inputLabel}>Peso Aproximado (Libras)</Text>
                             <TextInput style={styles.input} placeholder="Ej: 45.5" keyboardType="numeric" value={peso} onChangeText={setPeso} />
 
@@ -168,8 +195,12 @@ const Equipaje = ({ navigation }) => {
                                     <View key={index} style={styles.baggageItem}>
                                         <Text style={styles.baggageIcon}>🧳</Text>
                                         <View style={{ flex: 1 }}>
-                                            <Text style={styles.bagTitle}>{m.DESCRIPCION || m.descripcion}</Text>
-                                            <Text style={styles.bagWeight}>Peso: {m.PESO || m.peso} Libras</Text>
+                                            {/* 🔥 Ajuste 5: Solo variables en minúsculas */}
+                                            <Text style={styles.bagTitle}>{m.descripcion}</Text>
+                                            <Text style={styles.bagWeight}>Peso: {m.peso} Libras</Text>
+                                            {m.tipo_equipaje && (
+                                                <Text style={{fontSize: 10, color: '#0d47a1', marginTop: 2}}>{m.tipo_equipaje}</Text>
+                                            )}
                                         </View>
                                     </View>
                                 ))

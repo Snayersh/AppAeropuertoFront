@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity, FlatList }
 import { useFocusEffect } from '@react-navigation/native';
 import axios from 'axios';
 import { API_URL } from '../config';
-import { useGuardia } from '../hooks/useGuardia'; // 🔥 GUARDIA IMPORTADO
+import { useGuardia } from '../hooks/useGuardia'; 
 
 const PaseAbordar = ({ route, navigation }) => {
     // 🔥 CONTRATAMOS AL GUARDIA
@@ -31,11 +31,15 @@ const PaseAbordar = ({ route, navigation }) => {
         setCargando(true);
         setErrorMsg('');
         try {
-            const response = await axios.post(API_URL, {
-                accion: 'obtener_pase_abordar',
-                codigo: codigoBuscar,
-                correo: correoBuscar, // 🔥 El guardia asegura que sea tu correo
-                token: tokenBuscar
+            // 🔥 Ajustes 1 y 2: FormData y nombres exactos
+            const formData = new FormData();
+            formData.append('action', 'pase_abordar');
+            formData.append('codigoReserva', codigoBuscar);
+            formData.append('email', correoBuscar);
+            formData.append('token', tokenBuscar);
+
+            const response = await axios.post(API_URL, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
             });
             
             if (response.data.success && response.data.pases) {
@@ -56,21 +60,22 @@ const PaseAbordar = ({ route, navigation }) => {
     const renderPase = ({ item }) => {
         const data = Array.isArray(item) ? item[0] : item;
 
-        const pasajero = data.PASAJERO || data.Pasajero || data.pasajero || 'Desconocido';
-        const vuelo = data.CODIGO_VUELO || data.CODIGOVUELO || data.codigo_vuelo || '---';
-        const origenIata = data.ORIGEN_IATA || data.ORIGENIATA || data.origen_iata || 'ORG';
-        const origenCiudad = data.ORIGEN_CIUDAD || data.ORIGENCIUDAD || data.origen_ciudad || 'Origen';
-        const destinoIata = data.DESTINO_IATA || data.DESTINOIATA || data.destino_iata || 'DST';
-        const destinoCiudad = data.DESTINO_CIUDAD || data.DESTINOCIUDAD || data.destino_ciudad || 'Destino';
+        // 🔥 Ajuste 3: Lectura pura en minúsculas
+        const pasajero = data.pasajero || 'Desconocido';
+        const vuelo = data.codigo_vuelo || '---';
+        const origenIata = data.origen_iata || 'ORG';
+        const origenCiudad = data.origen_ciudad || 'Origen';
+        const destinoIata = data.destino_iata || 'DST';
+        const destinoCiudad = data.destino_ciudad || 'Destino';
         
-        let fecha = data.FECHA || data.FECHASALIDA || data.FECHA_SALIDA || data.fecha || 'Sin fecha';
+        let fecha = data.fecha_salida || 'Sin fecha';
         if (typeof fecha === 'string' && fecha.includes('T')) fecha = fecha.split('T')[0];
 
-        const hora = data.HORA_SALIDA || data.HORASALIDA || data.hora_salida || '--:--';
-        const clase = data.CLASE_CABINA || data.CLASECABINA || data.clase_cabina || 'N/A';
-        const asiento = data.ASIENTO || data.asiento || 'TBD';
+        const hora = data.hora_salida || '--:--';
+        const clase = data.clase_cabina || 'N/A';
+        const asiento = data.asiento || 'TBD';
         
-        const localizador = data.CODIGO_BOLETO || data.CODIGOBOLETO || data.CODIGORESERVA || codigo || '---';
+        const localizador = data.codigo_boleto || codigo || '---';
 
         return (
             <View style={styles.boardingPass}>

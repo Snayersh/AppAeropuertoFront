@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, TextInput, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import axios from 'axios';
 import { API_URL } from '../config';
-import { useGuardia } from '../hooks/useGuardia'; // 🔥 GUARDIA IMPORTADO
+import { useGuardia } from '../hooks/useGuardia'; 
 
 const Pagos = ({ route, navigation }) => {
     // 🔥 CONTRATAMOS AL GUARDIA
@@ -46,11 +46,16 @@ const Pagos = ({ route, navigation }) => {
 
         setCargando(true);
         try {
-            const response = await axios.post(API_URL, {
-                accion: 'procesar_pago',
-                codigo_reserva: codigoReserva,
-                correo_usuario: correoAuth, // 🔥 Dato desde el guardia
-                token: tokenAuth
+            // 🔥 Ajustes 1, 2 y 3: FormData, nombres exactos y agregar el idMetodoPago
+            const formData = new FormData();
+            formData.append('action', 'procesar_pago');
+            formData.append('codigoReserva', codigoReserva);
+            formData.append('email', correoAuth);
+            formData.append('idMetodoPago', 1); // 1 = Simulando Tarjeta de Crédito/Débito
+            formData.append('token', tokenAuth);
+
+            const response = await axios.post(API_URL, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
             });
 
             if (response.data.success) {

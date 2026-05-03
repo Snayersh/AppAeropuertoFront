@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
-import { useFocusEffect } from '@react-navigation/native'; // 🔥 NUEVO IMPORT
+import { useFocusEffect } from '@react-navigation/native';
 import axios from 'axios';
 import { API_URL } from '../config';
 import { useGuardia } from '../hooks/useGuardia';
@@ -70,15 +70,26 @@ const Reservas = ({ navigation }) => {
 
     const cargarIniciales = async (email, token) => {
         try {
+            // 🔥 Ajuste: FormData para promesas paralelas
+            const formVuelos = new FormData();
+            formVuelos.append('action', 'vuelos_disponibles');
+            formVuelos.append('email', email);
+            formVuelos.append('token', token);
+
+            const formClases = new FormData();
+            formClases.append('action', 'clases_disponibles');
+            formClases.append('email', email);
+            formClases.append('token', token);
+
             const [resVuelos, resClases] = await Promise.all([
-                axios.post(API_URL, { accion: 'vuelos_disponibles', correo: email, token: token }),
-                axios.post(API_URL, { accion: 'clases_disponibles', correo: email, token: token })
+                axios.post(API_URL, formVuelos, { headers: { 'Content-Type': 'multipart/form-data' } }),
+                axios.post(API_URL, formClases, { headers: { 'Content-Type': 'multipart/form-data' } })
             ]);
 
             if (resVuelos.data.success) {
                 setVuelos(resVuelos.data.vuelos);
             } else {
-                Alert.alert("⚠️ Error", resVuelos.data.mensaje || "El servidor rechazó la petición.");
+                Alert.alert("⚠️ Error", resVuelos.data.mensaje || "El servidor rechazó la petición de vuelos.");
             }
             if (resClases.data.success) setClases(resClases.data.clases);
         } catch (error) {
@@ -86,18 +97,21 @@ const Reservas = ({ navigation }) => {
         } finally { setCargando(false); }
     };
 
-    // 🔥 SOLUCIÓN BUG 1: useFocusEffect apaga el radar si sales de la pantalla
     useFocusEffect(
         useCallback(() => {
             let interval;
             if (!verificandoGuardia && vueloElegido && correoAuth && tokenAuth) {
                 const sincronizarAsientos = async () => {
                     try {
-                        const res = await axios.post(API_URL, { 
-                            accion: 'mapa_asientos', 
-                            id_vuelo: vueloElegido,
-                            correo: correoAuth,
-                            token: tokenAuth
+                        // 🔥 Ajuste: FormData en el motor de sincronización silencioso
+                        const formData = new FormData();
+                        formData.append('action', 'mapa_asientos');
+                        formData.append('idVuelo', vueloElegido);
+                        formData.append('email', correoAuth);
+                        formData.append('token', tokenAuth);
+
+                        const res = await axios.post(API_URL, formData, {
+                            headers: { 'Content-Type': 'multipart/form-data' }
                         });
 
                         if (res.data.success) {
@@ -130,10 +144,15 @@ const Reservas = ({ navigation }) => {
 
         setCargando(true);
         try {
-            const resMapa = await axios.post(API_URL, { 
-                accion: 'mapa_asientos', 
-                id_vuelo: idVuelo,
-                correo: correoAuth, token: tokenAuth
+            // 🔥 Ajuste: FormData para solicitar el mapa inicial
+            const formData = new FormData();
+            formData.append('action', 'mapa_asientos');
+            formData.append('idVuelo', idVuelo);
+            formData.append('email', correoAuth);
+            formData.append('token', tokenAuth);
+
+            const resMapa = await axios.post(API_URL, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
             });
 
             if (resMapa.data.success) {
@@ -153,7 +172,6 @@ const Reservas = ({ navigation }) => {
 
         const yaSeleccionado = asientosSeleccionados.find(a => a.asiento === asiento);
         
-        // 🔥 SOLUCIÓN BUG 3: Eliminamos el .fail() o .catch() problemático de SignalR
         if (yaSeleccionado) {
             setAsientosSeleccionados(prev => prev.filter(a => a.asiento !== asiento));
             if (proxyRef.current) proxyRef.current.invoke('liberarAsientoTemporal', vueloElegido, asiento);
@@ -171,14 +189,16 @@ const Reservas = ({ navigation }) => {
         try {
             const asientosFormateados = asientosSeleccionados.map(item => ({ asiento: item.asiento, id_clase: item.id_clase }));
 
-            // 🔥 SOLUCIÓN BUG 2: Blindamos el JSON enviando todas las llaves posibles que el backend pueda requerir
-            const response = await axios.post(API_URL, {
-                accion: 'crear_reserva', 
-                correo: correoAuth, 
-                correo_usuario: correoAuth, // Por si el backend usa esta llave
-                token: tokenAuth,
-                id_vuelo: vueloElegido, 
-                asientos: asientosFormateados 
+            // 🔥 Ajuste CRÍTICO: FormData y serialización del array de asientos
+            const formData = new FormData();
+            formData.append('action', 'crear_reserva');
+            formData.append('email', correoAuth);
+            formData.append('token', tokenAuth);
+            formData.append('idVuelo', vueloElegido);
+            formData.append('asientos', JSON.stringify(asientosFormateados)); // Convertimos el array a String JSON
+
+            const response = await axios.post(API_URL, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
             });
 
             if (response.data.success) {
@@ -190,7 +210,9 @@ const Reservas = ({ navigation }) => {
                         { text: "Pagar ahora", onPress: () => navigation.navigate('Pagos', { codigo }) }
                     ]
                 );
-            } else { Alert.alert("Error", response.data.mensaje); }
+            } else { 
+                Alert.alert("Error", response.data.mensaje); 
+            }
         } catch (error) {
             console.log(error);
             Alert.alert("Error de Conexión", "Revisa la consola para más detalles de tu backend.");
@@ -282,7 +304,8 @@ const Reservas = ({ navigation }) => {
                     <View style={styles.pickerContainer}>
                         <Picker selectedValue={vueloElegido} onValueChange={handleVueloChange} dropdownIconColor="#0d47a1">
                             <Picker.Item label="-- Selecciona tu vuelo --" value="" color="#888" />
-                            {vuelos.map((v) => <Picker.Item key={v.ID_VUELO || v.id_vuelo} label={v.DETALLE || v.detalle} value={v.ID_VUELO || v.id_vuelo} />)}
+                            {/* 🔥 Ajuste: Lectura limpia del mapeo en minúsculas */}
+                            {vuelos.map((v) => <Picker.Item key={v.id_vuelo} label={v.detalle} value={v.id_vuelo} />)}
                         </Picker>
                     </View>
 
@@ -292,7 +315,8 @@ const Reservas = ({ navigation }) => {
                             <View style={styles.pickerContainer}>
                                 <Picker selectedValue={claseElegida} onValueChange={setClaseElegida} dropdownIconColor="#0d47a1">
                                     <Picker.Item label="-- Mostrar Todo --" value="" color="#888" />
-                                    {clases.map((c) => <Picker.Item key={c.ID_TIPO_BOLETO || c.id_tipo_boleto} label={c.NOMBRE || c.nombre} value={(c.ID_TIPO_BOLETO || c.id_tipo_boleto).toString()} />)}
+                                    {/* 🔥 Ajuste: Lectura limpia del mapeo en minúsculas */}
+                                    {clases.map((c) => <Picker.Item key={c.id_tipo_boleto} label={c.nombre} value={c.id_tipo_boleto.toString()} />)}
                                 </Picker>
                             </View>
 

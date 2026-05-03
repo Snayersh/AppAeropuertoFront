@@ -36,16 +36,18 @@ const Login = ({ navigation, route }) => {
         setCargando(true);
 
         try {
-            const response = await axios.post(API_URL, {
-                accion: 'login',
-                correo: correoLimpio,
-                password: passwordLimpia 
-            }, {
+            // 🔥 Ajuste Vital 1 y 2: FormData y nombres exactos (action, email, password)
+            const formData = new FormData();
+            formData.append('action', 'login');
+            formData.append('email', correoLimpio);
+            formData.append('password', passwordLimpia);
+
+            const response = await axios.post(API_URL, formData, {
                 // 🔥 PASE VIP OBLIGATORIO (ACTUALIZADO PARA NGROK / LOCALTUNNEL) 🔥
                 headers: {
                     'ngrok-skip-browser-warning': 'true', 
                     'Bypass-Tunnel-Reminder': 'true',     
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'multipart/form-data' // Cambiado a multipart para soportar FormData
                 }
             });
 
@@ -53,6 +55,12 @@ const Login = ({ navigation, route }) => {
                 const user = response.data.usuario;
                 const token = response.data.token_sesion; // 🔥 ATRAPAMOS EL NUEVO TOKEN DE SEGURIDAD
 
+
+                    if (user.rol.toString() !== '2') {
+                    setMensajeError("Acceso denegado: Esta aplicación móvil es de uso exclusivo para pasajeros.");
+                    setCargando(false);
+                    return; // Detenemos el inicio de sesión aquí mismo
+                }
                 // Guardamos todo en la bóveda del teléfono
                 await AsyncStorage.setItem('UserName', user.nombre);
                 await AsyncStorage.setItem('UserEmail', user.correo);

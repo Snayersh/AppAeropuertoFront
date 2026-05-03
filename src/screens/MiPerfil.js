@@ -3,7 +3,7 @@ import { View, Text, TextInput, StyleSheet, ScrollView, TouchableOpacity, Activi
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import { API_URL } from '../config';
-import { useGuardia } from '../hooks/useGuardia'; // 🔥 GUARDIA IMPORTADO
+import { useGuardia } from '../hooks/useGuardia'; 
 
 const MiPerfil = ({ navigation }) => {
     // 🔥 CONTRATAMOS AL GUARDIA
@@ -27,20 +27,25 @@ const MiPerfil = ({ navigation }) => {
 
     const cargarDatosPerfil = async () => {
         try {
-            const response = await axios.post(API_URL, {
-                accion: 'perfil_obtener',
-                correo: correoAuth,
-                token: tokenAuth
+            // 🔥 Ajuste 1 y 2: Usamos FormData y la acción correcta
+            const formData = new FormData();
+            formData.append('action', 'obtener_perfil');
+            formData.append('email', correoAuth);
+
+            const response = await axios.post(API_URL, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
             });
             
             if (response.data.success) {
                 const perfil = response.data.perfil;
+                
+                // 🔥 Ajuste 3: Lectura limpia en minúsculas garantizada por .NET
                 setForm({
-                    primer_nombre: perfil.PRIMER_NOMBRE || perfil.primer_nombre || '',
-                    segundo_nombre: perfil.SEGUNDO_NOMBRE || perfil.segundo_nombre || '',
-                    primer_apellido: perfil.PRIMER_APELLIDO || perfil.primer_apellido || '',
-                    segundo_apellido: perfil.SEGUNDO_APELLIDO || perfil.segundo_apellido || '',
-                    telefono: perfil.TELEFONO || perfil.telefono || ''
+                    primer_nombre: perfil.primer_nombre || '',
+                    segundo_nombre: perfil.segundo_nombre || '',
+                    primer_apellido: perfil.primer_apellido || '',
+                    segundo_apellido: perfil.segundo_apellido || '',
+                    telefono: perfil.telefono || ''
                 });
             }
         } catch (error) {
@@ -60,15 +65,23 @@ const MiPerfil = ({ navigation }) => {
         setMensaje({ texto: '', tipo: '' });
 
         try {
-            const response = await axios.post(API_URL, {
-                accion: 'perfil_actualizar',
-                correo: correoAuth,
-                token: tokenAuth,
-                ...form
+            // 🔥 Ajustes vitales: FormData y mapeo exacto de los parámetros que espera .NET
+            const formData = new FormData();
+            formData.append('action', 'actualizar_perfil');
+            formData.append('email', correoAuth);
+            formData.append('pNombre', form.primer_nombre);
+            formData.append('sNombre', form.segundo_nombre);
+            formData.append('pApellido', form.primer_apellido);
+            formData.append('sApellido', form.segundo_apellido);
+            formData.append('telefono', form.telefono);
+
+            const response = await axios.post(API_URL, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
             });
 
             if (response.data.success) {
                 setMensaje({ texto: '¡Tu perfil se ha actualizado correctamente!', tipo: 'exito' });
+                // Actualizamos el AsyncStorage para que en el Inicio salga el nombre nuevo
                 await AsyncStorage.setItem('UserName', form.primer_nombre);
             } else {
                 setMensaje({ texto: response.data.mensaje || 'No se pudo actualizar el perfil.', tipo: 'error' });

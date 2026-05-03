@@ -23,13 +23,15 @@ const MisBoletos = ({ navigation }) => {
     const cargarBoletos = async (emailUsuario, tokenUsuario, estado) => {
         setCargando(true);
         try {
-            const response = await axios.post(API_URL, {
-                accion: 'mis_boletos',
-                correo: emailUsuario,
-                estado: estado,
-                token: tokenUsuario
-            }, {
-                headers: { 'ngrok-skip-browser-warning': 'true', 'Bypass-Tunnel-Reminder': 'true' }
+            // 🔥 Ajuste 1: FormData y nombres de parámetros exactos
+            const formData = new FormData();
+            formData.append('action', 'mis_boletos');
+            formData.append('email', emailUsuario);
+            formData.append('filtro', estado); // Nuestro ASHX espera "filtro"
+            formData.append('token', tokenUsuario);
+
+            const response = await axios.post(API_URL, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
             });
             
             if (response.data.success) {
@@ -37,83 +39,68 @@ const MisBoletos = ({ navigation }) => {
             } else {
                 setBoletos([]);
                 if (response.data.mensaje === "SESION_EXPIRADA") {
-                    Alert.alert("🔎 Chisme del Guardia", response.data.debug_info || "Sin detalles");
                     navigation.replace('Login');
                 }
             }
         } catch (error) {
+            console.log("Error al cargar boletos:", error);
             setBoletos([]);
         } finally {
             setCargando(false);
         }
     };
 
-    const confirmarCancelacion = (idBoleto) => {
+    const confirmarCancelacion = (codigoReserva) => {
         Alert.alert(
             "Cancelar Reserva",
             "¿Estás seguro que deseas cancelar esta reserva? El asiento será liberado.",
             [
                 { text: "No, volver", style: "cancel" },
-                { text: "Sí, cancelar", style: "destructive", onPress: () => procesarCancelacion(idBoleto) }
+                { text: "Sí, cancelar", style: "destructive", onPress: () => procesarCancelacion(codigoReserva) }
             ]
         );
     };
 
-    const procesarCancelacion = async (idBoleto) => {
+    const procesarCancelacion = async (codigoReserva) => {
         try {
             setCargando(true);
-            const response = await axios.post(API_URL, {
-                accion: 'cancelar_reserva',
-                id_boleto: idBoleto,
-                correo: correoAuth,
-                token: tokenAuth
-            }, {
-                headers: { 'ngrok-skip-browser-warning': 'true', 'Bypass-Tunnel-Reminder': 'true' }
+            // 🔥 Ajuste 2: Cancelamos por código de reserva (más seguro)
+            const formData = new FormData();
+            formData.append('action', 'cancelar_reserva');
+            formData.append('codigoReserva', codigoReserva);
+            formData.append('email', correoAuth);
+            formData.append('token', tokenAuth);
+
+            const response = await axios.post(API_URL, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
             });
 
             if (response.data.success) {
                 Alert.alert("Éxito", "Reserva cancelada correctamente.");
                 cargarBoletos(correoAuth, tokenAuth, filtroEstado);
             } else {
-                // 🔥 SOLUCIÓN BUG 4: Si el servidor dice que ya expiró, le avisamos al usuario y actualizamos la vista
-                if (response.data.mensaje === "ERROR_NO_ENCONTRADA_O_PAGADA") {
-                    Alert.alert("Reserva Expirada", "Esta reserva caducó por inactividad y ha sido limpiada del sistema.");
-                    cargarBoletos(correoAuth, tokenAuth, filtroEstado);
-                } else if (response.data.mensaje === "SESION_EXPIRADA") {
-                    Alert.alert("Sesión Expirada", "Has iniciado sesión en otro dispositivo.");
-                    navigation.replace('Login');
-                } else {
-                    Alert.alert("Error", response.data.mensaje || "No se pudo cancelar la reserva.");
-                }
+                Alert.alert("Error", response.data.mensaje || "No se pudo cancelar.");
             }
         } catch (error) {
-            Alert.alert("Error", "Error de conexión al cancelar la reserva.");
+            Alert.alert("Error", "Error de conexión.");
         } finally {
             setCargando(false);
         }
     };
 
     const renderBoleto = ({ item }) => {
-        const estadoStr = (item.estadoboleto || item.estado_boleto || item.estado || '').toUpperCase();
-        const codigoReserva = item.codigoreserva || item.codigo_reserva || item.codigo || '---';
-        const idBoleto = item.idboleto || item.id_boleto || item.id || ''; 
-        
-        // 🔥 SOLUCIÓN BUG 5: Atrapamos el ID_VUELO incluso si Oracle lo devuelve en mayúsculas
-        const idVuelo = item.ID_VUELO || item.IDVUELO || item.id_vuelo || item.idvuelo || item.id || ''; 
+        // 🔥 Ajuste 3: Lectura directa en minúsculas
+        const estadoStr = (item.estado_boleto || '').toUpperCase();
+        const codigoReserva = item.codigo_reserva || '---';
+        const idVuelo = item.id_vuelo || ''; 
 
-        let fechaSalidaCruda = item.fechasalida || item.fecha_salida || 'Sin Fecha';
-        let horaSalidaCruda = item.horasalida || item.hora_salida || '--:--';
+        let fechaSalida = item.fecha_salida || 'Sin Fecha';
+        let horaSalida = item.hora_salida || '--:--';
         
-        const asiento = item.asientoasignado || item.asiento_asignado || item.asiento || 'S/A';
+        const asiento = item.asiento_asignado || 'S/A';
         const origen = item.origen || 'Origen';
         const destino = item.destino || 'Destino';
-        const cabina = item.clasecabina || item.clase_cabina || item.cabina || 'N/A';
-
-        if (fechaSalidaCruda.includes(' ')) {
-            const partes = fechaSalidaCruda.split(' ');
-            fechaSalidaCruda = partes[0]; 
-            if (horaSalidaCruda === '--:--') horaSalidaCruda = partes[1].substring(0, 5);
-        }
+        const cabina = item.clase_cabina || 'N/A';
 
         let badgeStyle = styles.badgeReservado;
         if (estadoStr === 'PAGADO') badgeStyle = styles.badgePagado;
@@ -127,7 +114,7 @@ const MisBoletos = ({ navigation }) => {
                     if(idVuelo) {
                         navigation.navigate('DetalleVuelo', { id: idVuelo }); 
                     } else {
-                        Alert.alert("Aviso", "No hay detalles disponibles para este vuelo.");
+                        Alert.alert("Aviso", "No hay detalles disponibles.");
                     }
                 }}
             >
@@ -141,11 +128,11 @@ const MisBoletos = ({ navigation }) => {
                     <View style={styles.detailsRow}>
                         <View style={{ flex: 1.5 }}>
                             <Text style={styles.ticketLabel}>FECHA</Text>
-                            <Text style={styles.ticketValue}>{fechaSalidaCruda}</Text>
+                            <Text style={styles.ticketValue}>{fechaSalida}</Text>
                         </View>
                         <View style={{ flex: 1 }}>
                             <Text style={styles.ticketLabel}>HORA</Text>
-                            <Text style={styles.ticketValue}>{horaSalidaCruda}</Text>
+                            <Text style={styles.ticketValue}>{horaSalida}</Text>
                         </View>
                     </View>
                     
@@ -175,7 +162,7 @@ const MisBoletos = ({ navigation }) => {
                             <TouchableOpacity style={styles.btnPagar} onPress={() => navigation.navigate('Pagos', { codigo: codigoReserva })}>
                                 <Text style={styles.btnPagarText}>💳 Pagar</Text>
                             </TouchableOpacity>
-                            <TouchableOpacity style={styles.btnCancelar} onPress={() => confirmarCancelacion(idBoleto)}>
+                            <TouchableOpacity style={styles.btnCancelar} onPress={() => confirmarCancelacion(codigoReserva)}>
                                 <Text style={styles.btnCancelarText}>❌ Cancelar</Text>
                             </TouchableOpacity>
                         </>
@@ -191,7 +178,7 @@ const MisBoletos = ({ navigation }) => {
         );
     };
 
-    if (verificandoGuardia && boletos.length === 0) return <ActivityIndicator size="large" color="#0d47a1" style={{ marginTop: 50 }} />;
+    if (verificandoGuardia && boletos.length === 0) return <ActivityIndicator size="large" color="#0d47a1" style={{ flex: 1, justifyContent: 'center' }} />;
 
     return (
         <View style={styles.container}>

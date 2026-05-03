@@ -23,14 +23,20 @@ const DetalleVuelo = ({ route, navigation }) => {
         }
     }, [vuelo]);
 
-   const cargarVuelo = async () => {
+    const cargarVuelo = async () => {
         try {
-            const response = await axios.post(API_URL, {
-                accion: 'detalle_vuelo',
-                id: id
+            // 🔥 Ajuste 1 y 2: FormData y nombre correcto de la acción
+            const formData = new FormData();
+            formData.append('action', 'detalle_vuelo');
+            formData.append('id', id);
+
+            const response = await axios.post(API_URL, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
             });
+            
             if (response.data.success) {
-                setVuelo(response.data.vuelo);
+                // 🔥 Ajuste 3: Leemos "datos" porque así lo manda el DashboardService.vb
+                setVuelo(response.data.datos);
             }
         } catch (error) {
             console.log("Error cargando vuelo:", error);
@@ -41,11 +47,11 @@ const DetalleVuelo = ({ route, navigation }) => {
 
     const calcularProgreso = () => {
         if (!vuelo) return;
-        // La fecha ya viene perfecta en ISO desde tu nuevo Backend
+        
         const tSalida = new Date(vuelo.fecha_salida).getTime();
         const tLlegada = new Date(vuelo.fecha_llegada).getTime();
         const ahora = new Date().getTime();
-        const estado = String(vuelo.estado_vuelo || vuelo.estado || '').toUpperCase();
+        const estado = String(vuelo.estado_vuelo || '').toUpperCase();
 
         const formatMsToHM = (ms) => {
             if (ms < 0) return "0h 0m";

@@ -1,9 +1,9 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, FlatList } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, FlatList, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import axios from 'axios';
 import { API_URL } from '../config';
-import { useGuardia } from '../hooks/useGuardia'; // 🔥 GUARDIA IMPORTADO
+import { useGuardia } from '../hooks/useGuardia'; 
 
 const MisFacturas = ({ navigation }) => {
     // 🔥 CONTRATAMOS AL GUARDIA
@@ -23,12 +23,18 @@ const MisFacturas = ({ navigation }) => {
     const cargarFacturas = async (emailUsuario, tokenUsuario) => {
         setCargando(true);
         try {
-            const response = await axios.post(API_URL, {
-                accion: 'mis_facturas',
-                correo: emailUsuario,
-                token: tokenUsuario
+            // 🔥 Ajuste 1: Usamos FormData para el .ashx
+            const formData = new FormData();
+            formData.append('action', 'mis_facturas');
+            formData.append('email', emailUsuario);
+            formData.append('token', tokenUsuario);
+
+            const response = await axios.post(API_URL, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
             });
+
             if (response.data.success) {
+                // El servicio ClienteFacturaService devuelve una lista en la propiedad .facturas
                 setFacturas(response.data.facturas);
             } else {
                 setFacturas([]);
@@ -42,17 +48,16 @@ const MisFacturas = ({ navigation }) => {
     };
 
     const renderFactura = ({ item }) => {
-        const idFactura = item.IDFACTURA || item.IdFactura || item.id_factura || item.ID_FACTURA;
-        const numeroFactura = item.NUMEROFACTURA || item.NumeroFactura || item.numero_factura || item.NUMERO_FACTURA;
-        const fechaEmision = item.FECHAEMISION || item.FechaEmision || item.fecha_emision || item.FECHA_EMISION || 'Sin fecha';
-        const total = item.TOTAL || item.total || 0;
-        const estado = (item.ESTADO || item.estado || '').toUpperCase();
+        // 🔥 Ajuste 2: Lectura limpia en minúsculas (Mapeado de ClienteFacturaService.vb)
+        const idFactura = item.id_factura;
+        const numeroFactura = item.numero_factura || 'N/A';
+        const fechaEmision = item.fecha_emision || 'Sin fecha';
+        const total = item.total || 0;
+        const estado = (item.estado || 'PAGADO').toUpperCase();
 
         let fechaMostrar = fechaEmision;
-        if (typeof fechaMostrar === 'string' && fechaMostrar.includes(' ')) {
-            fechaMostrar = fechaMostrar.split(' ')[0];
-        } else if (typeof fechaMostrar === 'string' && fechaMostrar.includes('T')) {
-            fechaMostrar = fechaMostrar.split('T')[0];
+        if (typeof fechaMostrar === 'string') {
+            fechaMostrar = fechaMostrar.split(' ')[0].split('T')[0];
         }
 
         const isPagada = estado === 'PAGADA' || estado === 'PAGADO';
@@ -84,13 +89,19 @@ const MisFacturas = ({ navigation }) => {
                     style={styles.btnDetalle} 
                     onPress={() => navigation.navigate('DetalleFactura', { id_factura: idFactura })}
                 >
-                    <Text style={styles.btnDetalleText}>📄 Ver Detalle</Text>
+                    <Text style={styles.btnDetalleText}>📄 Ver Detalle / PDF</Text>
                 </TouchableOpacity>
             </View>
         );
     };
 
-    if (verificandoGuardia && facturas.length === 0) return <ActivityIndicator size="large" color="#0d47a1" style={{ marginTop: 50 }} />;
+    if (verificandoGuardia && facturas.length === 0) {
+        return (
+            <View style={[styles.container, { justifyContent: 'center' }]}>
+                <ActivityIndicator size="large" color="#0d47a1" />
+            </View>
+        );
+    }
 
     return (
         <View style={styles.container}>

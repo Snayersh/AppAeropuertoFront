@@ -15,10 +15,13 @@ const RecuperarPassword = ({ navigation }) => {
 
         setCargando(true);
         try {
-            // 🔥 CAMBIO: Apuntamos al Cerebro indicando la acción
-            const response = await axios.post(API_URL, {
-                accion: 'recuperar_password',
-                correo: correo
+            // 🔥 Ajuste: FormData y mapeo de variables para ApiMovil.ashx
+            const formData = new FormData();
+            formData.append('action', 'recuperar_password');
+            formData.append('email', correo);
+
+            const response = await axios.post(API_URL, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
             });
 
             if (response.data.success) {

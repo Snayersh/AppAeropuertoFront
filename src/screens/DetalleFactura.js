@@ -27,16 +27,22 @@ const DetalleFactura = ({ route, navigation }) => {
 
     const cargarFactura = async () => {
         try {
-            const response = await axios.post(API_URL, {
-                accion: 'detalle_factura',
-                id_factura: id_factura,
-                // 🔥 Se envían las credenciales del guardia
-                correo: correoAuth,
-                token: tokenAuth
+            // 🔥 Ajuste Vital 1 y 2: Usamos FormData y los nombres exactos del ApiMovil.ashx
+            const formData = new FormData();
+            formData.append('action', 'detalle_factura'); 
+            formData.append('idFactura', id_factura);
+            formData.append('email', correoAuth);
+            formData.append('token', tokenAuth);
+
+            const response = await axios.post(API_URL, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
             });
+
             if (response.data.success) {
                 setCabecera(response.data.cabecera);
                 setDetalles(response.data.detalles);
+            } else {
+                Alert.alert("Error", response.data.mensaje);
             }
         } catch (error) {
             console.log("Error cargando factura:", error);
@@ -48,11 +54,12 @@ const DetalleFactura = ({ route, navigation }) => {
     const generarPDF = async () => {
         setGenerandoPDF(true);
         try {
+            // 🔥 Ajuste Vital 3: Todo viene garantizado en minúsculas desde el servidor
             const filasTabla = detalles.map(item => `
                 <tr>
-                    <td>${item.DESCRIPCION || item.descripcion}</td>
-                    <td class="text-center">${item.CANTIDAD || item.cantidad}</td>
-                    <td class="text-right font-bold">Q ${parseFloat(item.SUBTOTAL || item.subtotal).toFixed(2)}</td>
+                    <td>${item.descripcion}</td>
+                    <td class="text-center">${item.cantidad}</td>
+                    <td class="text-right font-bold">Q ${parseFloat(item.subtotal).toFixed(2)}</td>
                 </tr>
             `).join('');
 
@@ -92,7 +99,7 @@ const DetalleFactura = ({ route, navigation }) => {
                                     <div class="subtitle">Aeropuerto Internacional, Guatemala</div>
                                 </td>
                                 <td class="text-right">
-                                    <div class="title" style="color: #333;">${cabecera.NUMERO_FACTURA || cabecera.numero_factura}</div>
+                                    <div class="title" style="color: #333;">${cabecera.numero_factura}</div>
                                     <div class="badge">PAGADO</div>
                                 </td>
                             </tr>
@@ -103,13 +110,13 @@ const DetalleFactura = ({ route, navigation }) => {
                         <tr>
                             <td style="width: 50%;">
                                 <div class="label">Facturado a:</div>
-                                <div class="value">${cabecera.CLIENTE || cabecera.cliente}</div>
+                                <div class="value">${cabecera.cliente}</div>
                                 <div class="label">Correo:</div>
-                                <div class="value">${cabecera.CORREO || cabecera.correo}</div>
+                                <div class="value">${cabecera.correo}</div>
                             </td>
                             <td style="width: 50%; text-align: right;">
                                 <div class="label">Fecha de Emisión:</div>
-                                <div class="value">${new Date(cabecera.FECHA_EMISION || cabecera.fecha_emision).toLocaleDateString()}</div>
+                                <div class="value">${new Date(cabecera.fecha_emision).toLocaleDateString()}</div>
                                 <div class="label">Moneda:</div>
                                 <div class="value">Quetzales (GTQ)</div>
                             </td>
@@ -128,7 +135,7 @@ const DetalleFactura = ({ route, navigation }) => {
                             ${filasTabla}
                             <tr class="total-row">
                                 <td colspan="2" class="text-right total-label">TOTAL PAGADO:</td>
-                                <td class="text-right total-value">Q ${parseFloat(cabecera.TOTAL || cabecera.total).toFixed(2)}</td>
+                                <td class="text-right total-value">Q ${parseFloat(cabecera.total).toFixed(2)}</td>
                             </tr>
                         </tbody>
                     </table>
@@ -197,7 +204,7 @@ const DetalleFactura = ({ route, navigation }) => {
                             <Text style={styles.subTitle}>Aeropuerto Internacional</Text>
                         </View>
                         <View style={{ alignItems: 'flex-end' }}>
-                            <Text style={styles.facNumber}>{cabecera.NUMERO_FACTURA || cabecera.numero_factura}</Text>
+                            <Text style={styles.facNumber}>{cabecera.numero_factura}</Text>
                             <Text style={styles.badge}>PAGADO</Text>
                         </View>
                     </View>
@@ -205,13 +212,13 @@ const DetalleFactura = ({ route, navigation }) => {
                     <View style={styles.infoRow}>
                         <View style={{ flex: 1 }}>
                             <Text style={styles.label}>Facturado a:</Text>
-                            <Text style={styles.value}>{cabecera.CLIENTE || cabecera.cliente}</Text>
+                            <Text style={styles.value}>{cabecera.cliente}</Text>
                             <Text style={styles.label}>Correo:</Text>
-                            <Text style={styles.value}>{cabecera.CORREO || cabecera.correo}</Text>
+                            <Text style={styles.value}>{cabecera.correo}</Text>
                         </View>
                         <View style={{ flex: 1, alignItems: 'flex-end' }}>
                             <Text style={styles.label}>Fecha:</Text>
-                            <Text style={styles.value}>{new Date(cabecera.FECHA_EMISION || cabecera.fecha_emision).toLocaleDateString()}</Text>
+                            <Text style={styles.value}>{new Date(cabecera.fecha_emision).toLocaleDateString()}</Text>
                             <Text style={styles.label}>Moneda:</Text>
                             <Text style={styles.value}>Quetzales (GTQ)</Text>
                         </View>
@@ -226,17 +233,17 @@ const DetalleFactura = ({ route, navigation }) => {
 
                         {detalles.map((item, index) => (
                             <View key={index} style={styles.tableRow}>
-                                <Text style={[styles.td, { flex: 2 }]}>{item.DESCRIPCION || item.descripcion}</Text>
-                                <Text style={[styles.td, { flex: 1, textAlign: 'center' }]}>{item.CANTIDAD || item.cantidad}</Text>
+                                <Text style={[styles.td, { flex: 2 }]}>{item.descripcion}</Text>
+                                <Text style={[styles.td, { flex: 1, textAlign: 'center' }]}>{item.cantidad}</Text>
                                 <Text style={[styles.td, { flex: 1, textAlign: 'right', fontWeight: 'bold' }]}>
-                                    Q {parseFloat(item.SUBTOTAL || item.subtotal).toFixed(2)}
+                                    Q {parseFloat(item.subtotal).toFixed(2)}
                                 </Text>
                             </View>
                         ))}
 
                         <View style={styles.totalRow}>
                             <Text style={styles.totalLabel}>TOTAL PAGADO:</Text>
-                            <Text style={styles.totalValue}>Q {parseFloat(cabecera.TOTAL || cabecera.total).toFixed(2)}</Text>
+                            <Text style={styles.totalValue}>Q {parseFloat(cabecera.total).toFixed(2)}</Text>
                         </View>
                     </View>
 
