@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, ImageBackground, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, TextInput, StyleSheet, TouchableOpacity, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
-import { API_URL } from '../config'
+import { API_URL } from '../config';
 
 const Login = ({ navigation, route }) => {
     const [email, setEmail] = useState('');
@@ -36,44 +36,51 @@ const Login = ({ navigation, route }) => {
         setCargando(true);
 
         try {
-            // 🔥 Ajuste Vital 1 y 2: FormData y nombres exactos (action, email, password)
             const formData = new FormData();
             formData.append('action', 'login');
             formData.append('email', correoLimpio);
             formData.append('password', passwordLimpia);
 
             const response = await axios.post(API_URL, formData, {
-                // 🔥 PASE VIP OBLIGATORIO (ACTUALIZADO PARA NGROK / LOCALTUNNEL) 🔥
                 headers: {
                     'ngrok-skip-browser-warning': 'true', 
                     'Bypass-Tunnel-Reminder': 'true',     
-                    'Content-Type': 'multipart/form-data' // Cambiado a multipart para soportar FormData
+                    'Content-Type': 'multipart/form-data' 
                 }
             });
 
-            if (response.data.success) {
-                const user = response.data.usuario;
-                const token = response.data.token_sesion; // 🔥 ATRAPAMOS EL NUEVO TOKEN DE SEGURIDAD
+         if (response.data.success) {
+    // 1. Extraemos los datos según los nombres del backend VB.NET
+    const idRolServidor = response.data.id_rol; 
+    const nombreServidor = response.data.nombre_completo;
+    const token = response.data.token_sesion;
+    const emailServidor = email.trim().toLowerCase(); // El que ya tenemos
 
+    // 2. Validación de seguridad para id_rol
+    if (idRolServidor === undefined || idRolServidor === null) {
+        setMensajeError("Error: El perfil de usuario no tiene un rol asignado.");
+        setCargando(false);
+        return;
+    }
 
-                    if (user.rol.toString() !== '2') {
-                    setMensajeError("Acceso denegado: Esta aplicación móvil es de uso exclusivo para pasajeros.");
-                    setCargando(false);
-                    return; // Detenemos el inicio de sesión aquí mismo
-                }
-                // Guardamos todo en la bóveda del teléfono
-                await AsyncStorage.setItem('UserName', user.nombre);
-                await AsyncStorage.setItem('UserEmail', user.correo);
-                await AsyncStorage.setItem('UserRole', user.rol.toString());
-                
-                // 🔥 GUARDAMOS EL TOKEN PARA USARLO EN LAS OTRAS PANTALLAS
-                if (token) {
-                    await AsyncStorage.setItem('UserToken', token);
-                }
+    // 3. Verificamos si es Pasajero (Rol 2)
+    if (idRolServidor.toString() !== '2') {
+        setMensajeError("Acceso denegado: Esta aplicación móvil es de uso exclusivo para pasajeros.");
+        setCargando(false);
+        return; 
+    }
+    
+    // 4. Guardamos en AsyncStorage usando los nombres correctos
+    await AsyncStorage.setItem('UserName', nombreServidor);
+    await AsyncStorage.setItem('UserEmail', emailServidor);
+    await AsyncStorage.setItem('UserRole', idRolServidor.toString());
+    
+    if (token) {
+        await AsyncStorage.setItem('UserToken', token);
+    }
 
-                navigation.replace('Inicio'); // Usamos replace para que no puedan darle "atrás" y volver al login
-            } else {
-                // Si está bloqueado temporalmente o la clave es incorrecta, el backend nos manda el texto exacto aquí:
+    navigation.replace('Inicio'); 
+} else {
                 setMensajeError(response.data.mensaje || 'Credenciales inválidas.');
             }
         } catch (error) {
@@ -89,119 +96,156 @@ const Login = ({ navigation, route }) => {
     };
 
     return (
-        <ImageBackground 
-            source={{ uri: 'https://images.unsplash.com/photo-1436491865332-7a61a109c0f3?auto=format&fit=crop&w=1350&q=80' }} 
-            style={styles.background}
-            resizeMode="cover"
+        <KeyboardAvoidingView 
+            behavior={Platform.OS === "ios" ? "padding" : "height"} 
+            style={styles.container}
         >
-            <View style={styles.overlay} />
-
-            <View style={styles.card}>
-                <View style={styles.header}>
-                    <Text style={styles.title}>✈️ Portal de Acceso</Text>
-                    <Text style={styles.subtitle}>Aeropuerto Internacional La Aurora</Text>
-                </View>
-
-                {mensajeExito !== '' && (
-                    <View style={styles.pnlExito}>
-                        <Text style={styles.textExito}>{mensajeExito}</Text>
-                    </View>
-                )}
-
-                {mensajeError !== '' && (
-                    <View style={styles.pnlError}>
-                        <Text style={styles.textError}>{mensajeError}</Text>
-                    </View>
-                )}
-
-                <View style={styles.inputGroup}>
-                    <Text style={styles.label}>Correo Electrónico</Text>
-                    <TextInput 
-                        style={styles.input}
-                        placeholder="usuario@correo.com"
-                        keyboardType="email-address"
-                        autoCapitalize="none"
-                        value={email}
-                        onChangeText={setEmail}
-                    />
-                </View>
-
-               <View style={styles.inputGroup}>
-                    <Text style={styles.label}>Contraseña</Text>
-                    <TextInput 
-                        style={styles.input}
-                        placeholder="••••••••"
-                        secureTextEntry={!showPassword}
-                        value={password}
-                        onChangeText={setPassword}
-                    />
+            <ScrollView contentContainerStyle={styles.scrollContainer} keyboardShouldPersistTaps="handled">
+                <View style={styles.loginCard}>
                     
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8, paddingHorizontal: 5 }}>
-                        <TouchableOpacity onPress={() => navigation.navigate('RecuperarPassword')}>
-                            <Text style={{ color: '#0d47a1', fontSize: 13, fontWeight: 'bold' }}>
-                                ¿Olvidaste tu contraseña?
-                            </Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
-                            <Text style={{ color: '#6c757d', fontSize: 13 }}>
-                                {showPassword ? 'Ocultar' : 'Mostrar'}
-                            </Text>
+                    <View style={styles.header}>
+                        <View style={styles.brandIconContainer}>
+                            <Text style={styles.brandIconText}>✈️</Text>
+                        </View>
+                        <Text style={styles.title}>Portal de Acceso</Text>
+                        <Text style={styles.subtitle}>Aeropuerto Internacional La Aurora</Text>
+                    </View>
+
+                    {mensajeExito !== '' && (
+                        <View style={styles.pnlExito}>
+                            <Text style={styles.textExito}>{mensajeExito}</Text>
+                        </View>
+                    )}
+
+                    {mensajeError !== '' && (
+                        <View style={styles.pnlError}>
+                            <Text style={styles.textError}>{mensajeError}</Text>
+                        </View>
+                    )}
+
+                    <View style={styles.inputGroup}>
+                        <Text style={styles.label}>CORREO ELECTRÓNICO</Text>
+                        <TextInput 
+                            style={styles.input}
+                            placeholder="nombre@ejemplo.com"
+                            placeholderTextColor="#adb5bd"
+                            keyboardType="email-address"
+                            autoCapitalize="none"
+                            value={email}
+                            onChangeText={setEmail}
+                        />
+                    </View>
+
+                    <View style={styles.inputGroup}>
+                        <Text style={styles.label}>CONTRASEÑA</Text>
+                        <TextInput 
+                            style={styles.input}
+                            placeholder="••••••••"
+                            placeholderTextColor="#adb5bd"
+                            secureTextEntry={!showPassword}
+                            value={password}
+                            onChangeText={setPassword}
+                        />
+                        
+                        <View style={styles.passwordActions}>
+                            <TouchableOpacity onPress={() => navigation.navigate('RecuperarPassword')}>
+                                <Text style={styles.linkText}>¿Olvidaste tu contraseña?</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+                                <Text style={styles.showPassText}>
+                                    {showPassword ? 'Ocultar' : 'Mostrar contraseña'}
+                                </Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+
+                    <TouchableOpacity 
+                        style={styles.btnPrimary} 
+                        onPress={handleLogin}
+                        disabled={cargando}
+                    >
+                        {cargando ? (
+                            <ActivityIndicator color="#fff" />
+                        ) : (
+                            <Text style={styles.btnPrimaryText}>INGRESAR AL SISTEMA</Text>
+                        )}
+                    </TouchableOpacity>
+
+                    <View style={styles.sectionDivider} />
+
+                    <View style={styles.footerRow}>
+                        <Text style={styles.mutedText}>¿Aún no tienes una cuenta? </Text>
+                        <TouchableOpacity onPress={() => navigation.navigate('Registro')}> 
+                            <Text style={[styles.linkText, { fontSize: 13 }]}>Crea una aquí</Text>
                         </TouchableOpacity>
                     </View>
-                </View>
 
-                <TouchableOpacity 
-                    style={styles.btnPrimary} 
-                    onPress={handleLogin}
-                    disabled={cargando}
-                >
-                    {cargando ? (
-                        <ActivityIndicator color="#fff" />
-                    ) : (
-                        <Text style={styles.btnPrimaryText}>Ingresar al Sistema</Text>
-                    )}
-                </TouchableOpacity>
-
-                <View style={styles.footerRow}>
-                    <Text style={styles.mutedText}>¿No tienes cuenta? </Text>
-                    <TouchableOpacity onPress={() => navigation.navigate('Registro')}> 
-                        <Text style={styles.linkText}>Regístrate aquí</Text>
+                    <TouchableOpacity style={styles.backButton} onPress={() => navigation.navigate('Inicio')}>
+                        <Text style={styles.linkBack}>← Volver al Portal Público</Text>
                     </TouchableOpacity>
-                </View>
 
-                <TouchableOpacity style={{ marginTop: 20 }} onPress={() => navigation.navigate('Inicio')}>
-                    <Text style={styles.linkBack}>← Volver al inicio</Text>
-                </TouchableOpacity>
-            </View>
-        </ImageBackground>
+                </View>
+            </ScrollView>
+        </KeyboardAvoidingView>
     );
 };
 
 const styles = StyleSheet.create({
-    background: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-    overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.5)' },
-    card: { 
-        width: '90%', maxWidth: 450, backgroundColor: 'rgba(255, 255, 255, 0.95)', 
-        borderRadius: 20, padding: 30, shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, 
-        shadowOpacity: 0.3, shadowRadius: 15, elevation: 10 
+    container: { flex: 1, backgroundColor: '#f8f9fc' },
+    scrollContainer: { flexGrow: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
+    
+    // Card estilo Dashboard
+    loginCard: { 
+        width: '100%', 
+        maxWidth: 450, 
+        backgroundColor: 'white', 
+        borderRadius: 20, 
+        padding: 35, 
+        shadowColor: '#000', 
+        shadowOffset: { width: 0, height: 10 }, 
+        shadowOpacity: 0.05, 
+        shadowRadius: 20, 
+        elevation: 5,
+        borderWidth: 1,
+        borderColor: '#edf2f9'
     },
-    header: { alignItems: 'center', marginBottom: 25 },
-    title: { fontSize: 24, fontWeight: 'bold', color: '#0d47a1' },
-    subtitle: { fontSize: 14, color: '#6c757d', marginTop: 5 },
-    pnlExito: { backgroundColor: '#e8f5e9', borderLeftWidth: 5, borderLeftColor: '#2e7d32', padding: 15, borderRadius: 8, marginBottom: 20 },
-    textExito: { color: '#2e7d32', fontWeight: 'bold', textAlign: 'center' },
-    pnlError: { backgroundColor: '#cea4aa', padding: 15, borderRadius: 8, marginBottom: 20 },
-    textError: { color: '#bd7474', fontWeight: 'bold', textAlign: 'center' },
+    
+    header: { alignItems: 'center', marginBottom: 30 },
+    
+    // Simulación del brand-icon web
+    brandIconContainer: { width: 55, height: 55, borderRadius: 12, borderWidth: 1, borderColor: '#edf2f9', justifyContent: 'center', alignItems: 'center', marginBottom: 15, backgroundColor: '#f8f9fc' },
+    brandIconText: { fontSize: 30 },
+    
+    title: { fontSize: 24, fontWeight: 'bold', color: '#2c3e50', letterSpacing: -0.5 },
+    subtitle: { fontSize: 10, color: '#6c757d', marginTop: 5, textTransform: 'uppercase', letterSpacing: 1, fontWeight: 'bold' },
+    
+    // Alertas
+    pnlExito: { backgroundColor: '#e0f2f1', borderLeftWidth: 5, borderLeftColor: '#00695c', padding: 15, borderRadius: 8, marginBottom: 20 },
+    textExito: { color: '#00695c', fontWeight: 'bold', textAlign: 'center', fontSize: 13 },
+    
+    pnlError: { backgroundColor: '#ffebee', borderLeftWidth: 5, borderLeftColor: '#e74c3c', padding: 15, borderRadius: 8, marginBottom: 20 },
+    textError: { color: '#c62828', fontWeight: 'bold', textAlign: 'center', fontSize: 13 },
+    
+    // Inputs
     inputGroup: { marginBottom: 20 },
-    label: { fontSize: 14, fontWeight: 'bold', color: '#6c757d', marginBottom: 5 },
-    input: { height: 50, backgroundColor: '#fff', borderRadius: 10, borderWidth: 1, borderColor: '#ced4da', paddingHorizontal: 15, fontSize: 16 },
-    showPassText: { color: '#6c757d', fontSize: 13, marginTop: 8, textAlign: 'right' },
-    btnPrimary: { backgroundColor: '#0d47a1', height: 50, borderRadius: 10, justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
-    btnPrimaryText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
-    footerRow: { flexDirection: 'row', justifyContent: 'center', borderTopWidth: 1, borderTopColor: '#dee2e6', paddingTop: 20 },
-    mutedText: { color: '#6c757d', fontSize: 14 },
-    linkText: { color: '#0d47a1', fontWeight: 'bold', fontSize: 14 },
-    linkBack: { color: '#6c757d', textAlign: 'center', fontSize: 14 }
+    label: { fontSize: 11, fontWeight: 'bold', color: '#6c757d', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 },
+    input: { height: 50, backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#dee2e6', paddingHorizontal: 15, fontSize: 15, color: '#2c3e50' },
+    
+    passwordActions: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10, paddingHorizontal: 5 },
+    showPassText: { color: '#6c757d', fontSize: 12 },
+    
+    // Botón
+    btnPrimary: { backgroundColor: '#0d47a1', height: 52, borderRadius: 26, justifyContent: 'center', alignItems: 'center', marginTop: 10, shadowColor: '#0d47a1', shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
+    btnPrimaryText: { color: '#fff', fontSize: 14, fontWeight: 'bold', letterSpacing: 0.5 },
+    
+    // Divider y Footer
+    sectionDivider: { height: 1, backgroundColor: '#edf2f9', marginVertical: 25 },
+    footerRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
+    mutedText: { color: '#6c757d', fontSize: 13 },
+    linkText: { color: '#0d47a1', fontWeight: 'bold', fontSize: 12 },
+    
+    backButton: { marginTop: 25, alignItems: 'center', opacity: 0.8 },
+    linkBack: { color: '#6c757d', fontSize: 13 }
 });
 
 export default Login;

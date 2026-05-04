@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert, FlatList } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert, FlatList, Image } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import axios from 'axios';
 import { API_URL } from '../config';
@@ -23,11 +23,10 @@ const MisBoletos = ({ navigation }) => {
     const cargarBoletos = async (emailUsuario, tokenUsuario, estado) => {
         setCargando(true);
         try {
-            // 🔥 Ajuste 1: FormData y nombres de parámetros exactos
             const formData = new FormData();
             formData.append('action', 'mis_boletos');
             formData.append('email', emailUsuario);
-            formData.append('filtro', estado); // Nuestro ASHX espera "filtro"
+            formData.append('filtro', estado); 
             formData.append('token', tokenUsuario);
 
             const response = await axios.post(API_URL, formData, {
@@ -64,7 +63,6 @@ const MisBoletos = ({ navigation }) => {
     const procesarCancelacion = async (codigoReserva) => {
         try {
             setCargando(true);
-            // 🔥 Ajuste 2: Cancelamos por código de reserva (más seguro)
             const formData = new FormData();
             formData.append('action', 'cancelar_reserva');
             formData.append('codigoReserva', codigoReserva);
@@ -89,7 +87,6 @@ const MisBoletos = ({ navigation }) => {
     };
 
     const renderBoleto = ({ item }) => {
-        // 🔥 Ajuste 3: Lectura directa en minúsculas
         const estadoStr = (item.estado_boleto || '').toUpperCase();
         const codigoReserva = item.codigo_reserva || '---';
         const idVuelo = item.id_vuelo || ''; 
@@ -102,9 +99,17 @@ const MisBoletos = ({ navigation }) => {
         const destino = item.destino || 'Destino';
         const cabina = item.clase_cabina || 'N/A';
 
-        let badgeStyle = styles.badgeReservado;
-        if (estadoStr === 'PAGADO') badgeStyle = styles.badgePagado;
-        if (estadoStr === 'CANCELADO') badgeStyle = styles.badgeCancelado;
+        // Definir estilos basados en el estado (Colores web exactos)
+        let badgeContainerStyle = styles.badgeReservado;
+        let badgeTextStyle = styles.badgeReservadoText;
+
+        if (estadoStr === 'PAGADO') {
+            badgeContainerStyle = styles.badgePagado;
+            badgeTextStyle = styles.badgePagadoText;
+        } else if (estadoStr === 'CANCELADO') {
+            badgeContainerStyle = styles.badgeCancelado;
+            badgeTextStyle = styles.badgeCanceladoText;
+        }
 
         return (
             <TouchableOpacity 
@@ -118,6 +123,7 @@ const MisBoletos = ({ navigation }) => {
                     }
                 }}
             >
+                {/* LADO IZQUIERDO: DETALLES DEL VUELO */}
                 <View style={styles.ticketMain}>
                     <View style={styles.routeRow}>
                         <Text style={styles.routeText}>{origen}</Text>
@@ -126,70 +132,84 @@ const MisBoletos = ({ navigation }) => {
                     </View>
                     
                     <View style={styles.detailsRow}>
-                        <View style={{ flex: 1.5 }}>
-                            <Text style={styles.ticketLabel}>FECHA</Text>
+                        <View style={{ flex: 1 }}>
+                            <Text style={styles.ticketLabel}>FECHA SALIDA</Text>
                             <Text style={styles.ticketValue}>{fechaSalida}</Text>
                         </View>
                         <View style={{ flex: 1 }}>
-                            <Text style={styles.ticketLabel}>HORA</Text>
+                            <Text style={styles.ticketLabel}>HORA GUA</Text>
                             <Text style={styles.ticketValue}>{horaSalida}</Text>
                         </View>
                     </View>
                     
-                    <View style={[styles.detailsRow, { marginTop: 10 }]}>
-                        <View style={{ flex: 1.5 }}>
+                    <View style={[styles.detailsRow, { marginTop: 15 }]}>
+                        <View style={{ flex: 1 }}>
                             <Text style={styles.ticketLabel}>CABINA</Text>
                             <Text style={[styles.ticketValue, { color: '#0d47a1' }]}>{cabina}</Text>
                         </View>
-                       <View style={{ flex: 1 }}>
+                        <View style={{ flex: 1 }}>
                             <Text style={styles.ticketLabel}>ASIENTO</Text>
-                            <Text style={[styles.ticketValue, { color: '#e65100' }]}>{asiento}</Text>
+                            <Text style={[styles.ticketValue, { color: '#e74c3c' }]}>{asiento}</Text>
                         </View>
                     </View>
                 </View>
 
+                {/* LADO DERECHO: ACCIONES Y LOCALIZADOR */}
                 <View style={styles.ticketSide}>
+                    <View style={styles.notchTop} />
+                    <View style={styles.notchBottom} />
+
                     <Text style={styles.ticketLabel}>LOCALIZADOR</Text>
                     <Text style={styles.locText}>{codigoReserva}</Text>
 
-                    <Text style={styles.ticketLabel}>ESTADO</Text>
-                    <View style={badgeStyle}>
-                        <Text style={styles.badgeText}>{estadoStr}</Text>
+                    <Text style={[styles.ticketLabel, { marginTop: 5 }]}>ESTADO</Text>
+                    <View style={[styles.badgeBase, badgeContainerStyle]}>
+                        <Text style={[styles.badgeTextBase, badgeTextStyle]}>{estadoStr}</Text>
                     </View>
 
                     {estadoStr === 'RESERVADO' && (
-                        <>
-                            <TouchableOpacity style={styles.btnPagar} onPress={() => navigation.navigate('Pagos', { codigo: codigoReserva })}>
-                                <Text style={styles.btnPagarText}>💳 Pagar</Text>
+                        <View style={{ width: '100%', marginTop: 5 }}>
+                            <TouchableOpacity style={styles.btnSuccess} onPress={() => navigation.navigate('Pagos', { codigo: codigoReserva })}>
+                                <Text style={styles.btnActionText}>💳 PAGAR</Text>
                             </TouchableOpacity>
-                            <TouchableOpacity style={styles.btnCancelar} onPress={() => confirmarCancelacion(codigoReserva)}>
-                                <Text style={styles.btnCancelarText}>❌ Cancelar</Text>
+                            <TouchableOpacity style={styles.btnDanger} onPress={() => confirmarCancelacion(codigoReserva)}>
+                                <Text style={styles.btnActionTextDanger}>❌ CANCELAR</Text>
                             </TouchableOpacity>
-                        </>
+                        </View>
                     )}
 
-                   {estadoStr === 'PAGADO' && (
-                        <TouchableOpacity style={styles.btnImprimir} onPress={() => navigation.navigate('PaseAbordar', { codigo: codigoReserva })}>
-                            <Text style={styles.btnImprimirText}>🖨️ Pase</Text>
-                        </TouchableOpacity>
+                    {estadoStr === 'PAGADO' && (
+                        <View style={{ width: '100%', marginTop: 5 }}>
+                            <TouchableOpacity style={styles.btnPrimary} onPress={() => navigation.navigate('PaseAbordar', { codigo: codigoReserva })}>
+                                <Text style={styles.btnActionText}>🖨️ PASE</Text>
+                            </TouchableOpacity>
+                            <Text style={styles.readyText}>¡Listo para volar!</Text>
+                        </View>
                     )}
                 </View>
             </TouchableOpacity>
         );
     };
 
-    if (verificandoGuardia && boletos.length === 0) return <ActivityIndicator size="large" color="#0d47a1" style={{ flex: 1, justifyContent: 'center' }} />;
+    if (verificandoGuardia && boletos.length === 0) {
+        return <ActivityIndicator size="large" color="#0d47a1" style={{ flex: 1, backgroundColor: '#f8f9fc', justifyContent: 'center' }} />;
+    }
 
     return (
         <View style={styles.container}>
+            {/* Top Bar Estilo Carbón */}
             <View style={styles.topBar}>
-                <Text style={styles.topBarTitle}>🎫 Portal de Pasajeros</Text>
+                <View style={styles.topBarLeft}>
+                    <Image source={require('../../assets/icon.png')} style={styles.brandIconMini} />
+                    <Text style={styles.topBarTitle}>Portal de Pasajeros</Text>
+                </View>
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.btnVolver}>
-                    <Text style={styles.btnVolverText}>← Volver</Text>
+                    <Text style={styles.btnVolverText}>← Inicio</Text>
                 </TouchableOpacity>
             </View>
 
-            <View style={styles.headerTitle}>
+            <View style={styles.headerContainer}>
+                <View style={styles.headerAccent} />
                 <Text style={styles.mainTitle}>Mis Viajes</Text>
                 <Text style={styles.subTitle}>Historial de reservas y pases de abordar</Text>
             </View>
@@ -197,7 +217,7 @@ const MisBoletos = ({ navigation }) => {
             <View style={styles.filterContainer}>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                     <TouchableOpacity style={[styles.filterChip, filtroEstado === 1 && styles.filterChipActive]} onPress={() => setFiltroEstado(1)}>
-                        <Text style={[styles.filterText, filtroEstado === 1 && styles.filterTextActive]}>Pendientes</Text>
+                        <Text style={[styles.filterText, filtroEstado === 1 && styles.filterTextActive]}>Pendiente de Pago</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={[styles.filterChip, filtroEstado === 2 && styles.filterChipActive]} onPress={() => setFiltroEstado(2)}>
                         <Text style={[styles.filterText, filtroEstado === 2 && styles.filterTextActive]}>Pagados</Text>
@@ -206,13 +226,13 @@ const MisBoletos = ({ navigation }) => {
                         <Text style={[styles.filterText, filtroEstado === 3 && styles.filterTextActive]}>Cancelados</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={[styles.filterChip, filtroEstado === 0 && styles.filterChipActive]} onPress={() => setFiltroEstado(0)}>
-                        <Text style={[styles.filterText, filtroEstado === 0 && styles.filterTextActive]}>Todos</Text>
+                        <Text style={[styles.filterText, filtroEstado === 0 && styles.filterTextActive]}>Todos los boletos</Text>
                     </TouchableOpacity>
                 </ScrollView>
             </View>
 
             {cargando ? (
-                <ActivityIndicator size="large" color="#0d47a1" style={{ marginTop: 50 }} />
+                <ActivityIndicator size="large" color="#2c3e50" style={{ marginTop: 50 }} />
             ) : (
                 <FlatList
                     data={boletos}
@@ -221,11 +241,11 @@ const MisBoletos = ({ navigation }) => {
                     renderItem={renderBoleto}
                     ListEmptyComponent={
                         <View style={styles.emptyContainer}>
-                            <Text style={{ fontSize: 60 }}>🧳</Text>
+                            <Text style={styles.emptyEmoji}>✈️</Text>
                             <Text style={styles.emptyTitle}>Aún no tienes vuelos</Text>
-                            <Text style={styles.emptySub}>¿Qué esperas para planear tu aventura?</Text>
+                            <Text style={styles.emptySub}>Planifica tu próxima aventura con nosotros</Text>
                             <TouchableOpacity style={styles.btnComprar} onPress={() => navigation.navigate('Reservas')}>
-                                <Text style={styles.btnComprarText}>Comprar Boleto</Text>
+                                <Text style={styles.btnComprarText}>RESERVAR AHORA</Text>
                             </TouchableOpacity>
                         </View>
                     }
@@ -236,44 +256,78 @@ const MisBoletos = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#f4f7f6' },
-    topBar: { backgroundColor: '#0d47a1', padding: 20, paddingTop: 50, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-    topBarTitle: { color: 'white', fontSize: 18, fontWeight: 'bold' },
-    btnVolver: { borderColor: 'white', borderWidth: 1, paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20 },
+    container: { flex: 1, backgroundColor: '#f8f9fc' },
+    
+    // Top Bar Carbón
+    topBar: { backgroundColor: '#2c3e50', padding: 20, paddingTop: 50, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.1, elevation: 5 },
+    topBarLeft: { flexDirection: 'row', alignItems: 'center' },
+    brandIconMini: { width: 30, height: 30, borderRadius: 6, marginRight: 10, backgroundColor: 'white' },
+    topBarTitle: { color: 'white', fontSize: 16, fontWeight: 'bold' },
+    btnVolver: { borderColor: '#bdc3c7', borderWidth: 1, paddingHorizontal: 15, paddingVertical: 6, borderRadius: 20 },
     btnVolverText: { color: 'white', fontWeight: 'bold', fontSize: 12 },
-    headerTitle: { alignItems: 'center', marginVertical: 20 },
-    mainTitle: { fontSize: 24, fontWeight: 'bold', color: '#333' },
-    subTitle: { color: '#666', fontSize: 14 },
+    
+    // Headers
+    headerContainer: { alignItems: 'center', marginVertical: 25 },
+    headerAccent: { width: 60, height: 5, backgroundColor: '#0d47a1', borderRadius: 10, marginBottom: 15 },
+    mainTitle: { fontSize: 24, fontWeight: 'bold', color: '#2c3e50', letterSpacing: -0.5 },
+    subTitle: { color: '#6c757d', fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, marginTop: 5, fontWeight: 'bold' },
+    
+    // Filtros
     filterContainer: { paddingLeft: 15, marginBottom: 20 },
-    filterChip: { paddingHorizontal: 20, paddingVertical: 8, borderRadius: 20, backgroundColor: '#e9ecef', marginRight: 10 },
-    filterChipActive: { backgroundColor: '#0d47a1' },
-    filterText: { color: '#495057', fontWeight: 'bold' },
+    filterChip: { paddingHorizontal: 18, paddingVertical: 10, borderRadius: 20, backgroundColor: 'white', borderWidth: 1, borderColor: '#edf2f9', marginRight: 10, shadowColor: '#000', shadowOpacity: 0.02, elevation: 1 },
+    filterChipActive: { backgroundColor: '#2c3e50', borderColor: '#2c3e50' },
+    filterText: { color: '#6c757d', fontWeight: 'bold', fontSize: 12 },
     filterTextActive: { color: '#fff' },
-    ticketCard: { backgroundColor: 'white', borderRadius: 12, marginBottom: 15, flexDirection: 'row', overflow: 'hidden', borderLeftWidth: 8, borderLeftColor: '#0d47a1', shadowColor: '#000', shadowOpacity: 0.1, elevation: 3 },
-    ticketMain: { flex: 2, padding: 15 },
-    routeRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 15 },
-    routeText: { fontSize: 20, fontWeight: 'bold', color: '#333' },
-    flightIcon: { fontSize: 20, color: '#1976d2', marginHorizontal: 10 },
+    
+    // Tarjeta Boarding Pass
+    ticketCard: { backgroundColor: 'white', borderRadius: 15, marginBottom: 25, flexDirection: 'row', overflow: 'hidden', borderLeftWidth: 8, borderLeftColor: '#2c3e50', borderWidth: 1, borderColor: '#edf2f9', shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 10, elevation: 4 },
+    ticketMain: { flex: 2, padding: 20, justifyContent: 'center' },
+    
+    routeRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
+    routeText: { fontSize: 22, fontWeight: '900', color: '#2c3e50', letterSpacing: -0.5 },
+    flightIcon: { fontSize: 18, color: '#0d47a1', marginHorizontal: 15, opacity: 0.8 },
+    
     detailsRow: { flexDirection: 'row', justifyContent: 'space-between' },
-    ticketLabel: { fontSize: 10, color: '#888', fontWeight: 'bold', marginBottom: 2 },
-    ticketValue: { fontSize: 14, fontWeight: 'bold', color: '#2c3e50' },
-    ticketSide: { flex: 1, backgroundColor: '#f8f9fa', padding: 15, borderLeftWidth: 2, borderLeftColor: '#dee2e6', borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center' },
-    locText: { fontSize: 18, fontWeight: 'bold', color: '#333', marginBottom: 10 },
-    badgeReservado: { backgroundColor: '#fff3e0', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10, marginBottom: 10 },
-    badgePagado: { backgroundColor: '#e8f5e9', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10, marginBottom: 10 },
-    badgeCancelado: { backgroundColor: '#ffebee', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10, marginBottom: 10 },
-    badgeText: { fontWeight: 'bold', fontSize: 10 },
-    btnPagar: { backgroundColor: '#27ae60', paddingVertical: 6, width: '100%', borderRadius: 5, alignItems: 'center', marginBottom: 5 },
-    btnPagarText: { color: 'white', fontWeight: 'bold', fontSize: 12 },
-    btnCancelar: { borderColor: '#e74c3c', borderWidth: 1, paddingVertical: 6, width: '100%', borderRadius: 5, alignItems: 'center' },
-    btnCancelarText: { color: '#e74c3c', fontWeight: 'bold', fontSize: 12 },
-    btnImprimir: { backgroundColor: '#0d47a1', paddingVertical: 6, width: '100%', borderRadius: 5, alignItems: 'center' },
-    btnImprimirText: { color: 'white', fontWeight: 'bold', fontSize: 12 },
-    emptyContainer: { alignItems: 'center', marginTop: 40 },
-    emptyTitle: { fontSize: 18, fontWeight: 'bold', color: '#666', marginTop: 10 },
-    emptySub: { color: '#999', marginBottom: 20 },
-    btnComprar: { backgroundColor: '#0d47a1', paddingHorizontal: 25, paddingVertical: 12, borderRadius: 25 },
-    btnComprarText: { color: 'white', fontWeight: 'bold', fontSize: 16 }
+    ticketLabel: { fontSize: 10, color: '#6c757d', fontWeight: '800', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 4 },
+    ticketValue: { fontSize: 15, fontWeight: 'bold', color: '#2c3e50' },
+    
+    // Separador y Lado Derecho
+    ticketSide: { flex: 1.2, backgroundColor: '#f8f9fc', padding: 15, borderLeftWidth: 2, borderLeftColor: '#bdc3c7', borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', position: 'relative' },
+    
+    // Muescas visuales simuladas
+    notchTop: { position: 'absolute', top: -12, left: -12, width: 24, height: 24, borderRadius: 12, backgroundColor: '#f8f9fc' },
+    notchBottom: { position: 'absolute', bottom: -12, left: -12, width: 24, height: 24, borderRadius: 12, backgroundColor: '#f8f9fc' },
+
+    locText: { fontSize: 20, fontWeight: '900', color: '#2c3e50', letterSpacing: 1, marginBottom: 15 },
+    
+    // Badges dinámicos
+    badgeBase: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, marginBottom: 15 },
+    badgeTextBase: { fontWeight: '900', fontSize: 10, letterSpacing: 0.5, textTransform: 'uppercase' },
+    
+    badgeReservado: { backgroundColor: '#fff3e0' },
+    badgeReservadoText: { color: '#e65100' },
+    badgePagado: { backgroundColor: '#e0f2f1' },
+    badgePagadoText: { color: '#00695c' },
+    badgeCancelado: { backgroundColor: '#ffebee' },
+    badgeCanceladoText: { color: '#e74c3c' },
+    
+    // Botones de acción (Estilo Píldora)
+    btnSuccess: { backgroundColor: '#198754', paddingVertical: 8, width: '100%', borderRadius: 25, alignItems: 'center', marginBottom: 8, shadowColor: '#198754', shadowOpacity: 0.3, elevation: 2 },
+    btnDanger: { backgroundColor: 'transparent', borderColor: '#e74c3c', borderWidth: 1.5, paddingVertical: 8, width: '100%', borderRadius: 25, alignItems: 'center' },
+    btnPrimary: { backgroundColor: '#0d47a1', paddingVertical: 10, width: '100%', borderRadius: 25, alignItems: 'center', shadowColor: '#0d47a1', shadowOpacity: 0.3, elevation: 2 },
+    
+    btnActionText: { color: 'white', fontWeight: 'bold', fontSize: 11, letterSpacing: 0.5 },
+    btnActionTextDanger: { color: '#e74c3c', fontWeight: 'bold', fontSize: 11, letterSpacing: 0.5 },
+    
+    readyText: { fontSize: 10, color: '#198754', fontWeight: 'bold', textTransform: 'uppercase', marginTop: 10, letterSpacing: 1, textAlign: 'center' },
+    
+    // Vacio
+    emptyContainer: { alignItems: 'center', marginTop: 40, paddingHorizontal: 20 },
+    emptyEmoji: { fontSize: 60, opacity: 0.3, marginBottom: 15 },
+    emptyTitle: { fontSize: 18, fontWeight: 'bold', color: '#2c3e50', marginBottom: 5 },
+    emptySub: { color: '#6c757d', fontSize: 12, textTransform: 'uppercase', letterSpacing: 1, fontWeight: 'bold', textAlign: 'center', marginBottom: 25 },
+    btnComprar: { backgroundColor: '#2c3e50', paddingHorizontal: 30, paddingVertical: 14, borderRadius: 30, shadowColor: '#000', shadowOpacity: 0.2, elevation: 4 },
+    btnComprarText: { color: 'white', fontWeight: 'bold', fontSize: 13, letterSpacing: 1 }
 });
 
 export default MisBoletos;

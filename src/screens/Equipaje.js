@@ -30,7 +30,6 @@ const Equipaje = ({ navigation }) => {
 
     const cargarBoletosDropdown = async () => {
         try {
-            // 🔥 Ajuste 1: FormData y action correcta
             const formData = new FormData();
             formData.append('action', 'boletos_equipaje');
             formData.append('email', correoAuth);
@@ -57,7 +56,6 @@ const Equipaje = ({ navigation }) => {
 
         setCargandoLista(true);
         try {
-            // 🔥 Ajuste 2: FormData y action correcta
             const formData = new FormData();
             formData.append('action', 'listar_equipaje');
             formData.append('codigoBoleto', codigo);
@@ -83,7 +81,6 @@ const Equipaje = ({ navigation }) => {
 
         setGuardando(true);
         try {
-            // 🔥 Ajuste 3: FormData y nombres de parámetros idénticos a ApiMovil.ashx
             const formData = new FormData();
             formData.append('action', 'registrar_equipaje');
             formData.append('codigoBoleto', boletoSeleccionado);
@@ -114,38 +111,44 @@ const Equipaje = ({ navigation }) => {
     if (verificandoGuardia || cargandoInicial) {
         return (
             <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-                <ActivityIndicator size="large" color="#ff9800" />
-                <Text style={{ marginTop: 10 }}>Cargando tus reservas...</Text>
+                <ActivityIndicator size="large" color="#e65100" />
+                <Text style={{ marginTop: 15, color: '#2c3e50', fontWeight: 'bold' }}>Cargando tus reservas...</Text>
             </View>
         );
     }
 
     return (
         <View style={styles.container}>
+            {/* Top Bar Carbón Profesional */}
             <View style={styles.topBar}>
-                <Text style={styles.topBarTitle}>🧳 Portal de Equipaje</Text>
+                <Text style={styles.topBarTitle}>🧳 Portal de Equipaje GUA</Text>
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.btnVolver}>
-                    <Text style={styles.btnVolverText}>← Volver</Text>
+                    <Text style={styles.btnVolverText}>← Inicio</Text>
                 </TouchableOpacity>
             </View>
 
-            <ScrollView contentContainerStyle={{ padding: 20 }}>
+            <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
                 <View style={styles.mainCard}>
-                    <Text style={styles.mainTitle}>Documentación</Text>
-                    <Text style={styles.subTitle}>Registra tus maletas antes de llegar al aeropuerto.</Text>
+                    
+                    {/* Header y Acento Naranja */}
+                    <View style={styles.headerContainer}>
+                        <View style={styles.headerAccent} />
+                        <Text style={styles.mainTitle}>Documentación de Equipaje</Text>
+                        <Text style={styles.subTitle}>Gestión anticipada para agilizar su abordaje</Text>
+                    </View>
 
                     <View style={styles.selectBox}>
-                        <Text style={styles.label}>1. Selecciona tu Reserva</Text>
+                        <Text style={styles.labelCustom}>1. Selecciona tu Reserva de Vuelo</Text>
                         <View style={styles.pickerContainer}>
                             <Picker
                                 selectedValue={boletoSeleccionado}
                                 onValueChange={handleBoletoChange}
-                                dropdownIconColor="#0d47a1"
+                                dropdownIconColor="#2c3e50"
+                                style={styles.pickerStyle}
                             >
                                 <Picker.Item label="-- Selecciona una de tus reservas --" value="" color="#888" />
-                                {/* 🔥 Ajuste 4: Solo variables en minúsculas */}
                                 {boletos.map((b, index) => (
-                                    <Picker.Item key={index} label={b.descripcion_boleto} value={b.codigo_boleto} />
+                                    <Picker.Item key={index} label={b.descripcion_boleto} value={b.codigo_boleto} color="#0d47a1" />
                                 ))}
                             </Picker>
                         </View>
@@ -153,14 +156,17 @@ const Equipaje = ({ navigation }) => {
 
                     {boletoSeleccionado !== '' && (
                         <View style={styles.gestionContainer}>
-                            <Text style={[styles.sectionTitle, { color: '#ff9800' }]}>2. Agregar Nueva Maleta</Text>
                             
-                            <Text style={styles.inputLabel}>Tipo de Equipaje</Text>
-                            <View style={[styles.pickerContainer, { marginBottom: 15 }]}>
+                            {/* FORMULARIO NUEVA MALETA */}
+                            <Text style={styles.sectionSubtitle}>2. Nueva Maleta</Text>
+                            
+                            <Text style={styles.labelCustom}>Tipo de Equipaje *</Text>
+                            <View style={[styles.pickerContainer, { marginBottom: 20 }]}>
                                 <Picker
                                     selectedValue={tipoEquipaje}
                                     onValueChange={(itemValue) => setTipoEquipaje(itemValue)}
                                     dropdownIconColor="#6c757d"
+                                    style={styles.pickerStyle}
                                 >
                                     <Picker.Item label="-- Seleccionar --" value="" color="#888" />
                                     <Picker.Item label="Maleta de Bodega (Documentada)" value="1" />
@@ -169,38 +175,64 @@ const Equipaje = ({ navigation }) => {
                                 </Picker>
                             </View>
 
-                            <Text style={styles.inputLabel}>Peso Aproximado (Libras)</Text>
-                            <TextInput style={styles.input} placeholder="Ej: 45.5" keyboardType="numeric" value={peso} onChangeText={setPeso} />
+                            <Text style={styles.labelCustom}>Peso Estimado (Lbs) *</Text>
+                            <TextInput 
+                                style={styles.input} 
+                                placeholder="Ej: 45.5" 
+                                placeholderTextColor="#adb5bd"
+                                keyboardType="numeric" 
+                                value={peso} 
+                                onChangeText={setPeso} 
+                            />
 
-                            <Text style={styles.inputLabel}>Descripción</Text>
-                            <TextInput style={[styles.input, { height: 80, textAlignVertical: 'top' }]} placeholder="Ej: Maleta roja..." multiline={true} numberOfLines={3} value={descripcion} onChangeText={setDescripcion} />
+                            <Text style={styles.labelCustom}>Descripción Detallada *</Text>
+                            <TextInput 
+                                style={[styles.input, { height: 90, textAlignVertical: 'top', paddingTop: 15 }]} 
+                                placeholder="Color, marca y señas particulares..." 
+                                placeholderTextColor="#adb5bd"
+                                multiline={true} 
+                                numberOfLines={3} 
+                                value={descripcion} 
+                                onChangeText={setDescripcion} 
+                            />
 
-                            <TouchableOpacity style={styles.btnWarning} onPress={agregarMaleta} disabled={guardando}>
-                                {guardando ? <ActivityIndicator color="#424242" /> : <Text style={styles.btnWarningText}>Registrar Maleta ➕</Text>}
+                            <TouchableOpacity style={styles.btnAuroraAction} onPress={agregarMaleta} disabled={guardando}>
+                                {guardando ? (
+                                    <ActivityIndicator color="#fff" />
+                                ) : (
+                                    <Text style={styles.btnAuroraText}>REGISTRAR MALETA ➕</Text>
+                                )}
                             </TouchableOpacity>
 
                             <View style={styles.divider} />
 
-                            <Text style={[styles.sectionTitle, { color: '#0d47a1' }]}>3. Tu Equipaje Documentado</Text>
+                            {/* LISTA DE EQUIPAJE DOCUMENTADO */}
+                            <Text style={styles.sectionSubtitle}>3. Equipaje Documentado</Text>
                             
                             {cargandoLista ? (
-                                <ActivityIndicator size="small" color="#0d47a1" style={{ marginVertical: 20 }} />
+                                <ActivityIndicator size="large" color="#e65100" style={{ marginVertical: 30 }} />
                             ) : maletas.length === 0 ? (
                                 <View style={styles.emptyBox}>
-                                    <Text style={{ fontSize: 40, opacity: 0.5 }}>👜</Text>
-                                    <Text style={styles.emptyText}>Aún no has registrado equipaje.</Text>
+                                    <Text style={styles.emptyIcon}>🧳</Text>
+                                    <Text style={styles.emptyText}>No hay equipaje registrado para esta reserva.</Text>
                                 </View>
                             ) : (
                                 maletas.map((m, index) => (
                                     <View key={index} style={styles.baggageItem}>
                                         <Text style={styles.baggageIcon}>🧳</Text>
                                         <View style={{ flex: 1 }}>
-                                            {/* 🔥 Ajuste 5: Solo variables en minúsculas */}
                                             <Text style={styles.bagTitle}>{m.descripcion}</Text>
-                                            <Text style={styles.bagWeight}>Peso: {m.peso} Libras</Text>
-                                            {m.tipo_equipaje && (
-                                                <Text style={{fontSize: 10, color: '#0d47a1', marginTop: 2}}>{m.tipo_equipaje}</Text>
-                                            )}
+                                            
+                                            <View style={styles.badgesContainer}>
+                                                <View style={styles.badgeLight}>
+                                                    <Text style={styles.badgeLightText}>{m.peso} Lbs</Text>
+                                                </View>
+                                                {m.tipo_equipaje && (
+                                                    <View style={styles.badgeDark}>
+                                                        <Text style={styles.badgeDarkText}>{m.tipo_equipaje}</Text>
+                                                    </View>
+                                                )}
+                                            </View>
                                         </View>
                                     </View>
                                 ))
@@ -214,30 +246,59 @@ const Equipaje = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#f4f7f6' },
-    topBar: { backgroundColor: '#0d47a1', padding: 20, paddingTop: 50, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-    topBarTitle: { color: 'white', fontSize: 18, fontWeight: 'bold' },
-    btnVolver: { borderColor: 'white', borderWidth: 1, paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20 },
+    container: { flex: 1, backgroundColor: '#f8f9fc' },
+    
+    // Top Bar Carbón
+    topBar: { backgroundColor: '#2c3e50', padding: 20, paddingTop: 50, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.1, elevation: 4 },
+    topBarTitle: { color: 'white', fontSize: 16, fontWeight: 'bold' },
+    btnVolver: { borderColor: '#bdc3c7', borderWidth: 1, paddingHorizontal: 15, paddingVertical: 6, borderRadius: 20 },
     btnVolverText: { color: 'white', fontWeight: 'bold', fontSize: 12 },
-    mainCard: { backgroundColor: 'white', borderRadius: 15, padding: 20, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 10, elevation: 3, borderTopWidth: 5, borderTopColor: '#ff9800', marginBottom: 30 },
-    mainTitle: { fontSize: 24, fontWeight: 'bold', color: '#ff9800', textAlign: 'center' },
-    subTitle: { fontSize: 14, color: '#666', textAlign: 'center', marginBottom: 20 },
-    selectBox: { backgroundColor: '#f8f9fa', padding: 15, borderRadius: 10, borderWidth: 1, borderColor: '#dee2e6', marginBottom: 20 },
-    label: { fontSize: 14, fontWeight: 'bold', color: '#6c757d', marginBottom: 10 },
-    pickerContainer: { backgroundColor: 'white', borderRadius: 8, borderWidth: 1, borderColor: '#ced4da', overflow: 'hidden' },
+    
+    // Main Card
+    mainCard: { backgroundColor: 'white', borderRadius: 15, padding: 25, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 15, elevation: 3, borderWidth: 1, borderColor: '#edf2f9' },
+    
+    // Header
+    headerContainer: { alignItems: 'center', marginBottom: 25 },
+    headerAccent: { width: 60, height: 5, backgroundColor: '#e65100', borderRadius: 10, marginBottom: 15 },
+    mainTitle: { fontSize: 20, fontWeight: 'bold', color: '#2c3e50', textAlign: 'center', letterSpacing: -0.5 },
+    subTitle: { fontSize: 11, color: '#6c757d', textAlign: 'center', textTransform: 'uppercase', letterSpacing: 1, marginTop: 5 },
+    
+    // Select Box Area
+    selectBox: { backgroundColor: '#f8f9fc', padding: 20, borderRadius: 12, borderWidth: 1, borderColor: '#edf2f9', marginBottom: 25 },
+    
+    // Labels compartidos
+    labelCustom: { fontSize: 11, fontWeight: '800', color: '#6c757d', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8 },
+    sectionSubtitle: { fontSize: 15, fontWeight: '800', color: '#2c3e50', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 20 },
+    
+    // Pickers e Inputs
+    pickerContainer: { backgroundColor: 'white', borderRadius: 10, borderWidth: 1, borderColor: '#dee2e6', overflow: 'hidden', height: 50, justifyContent: 'center' },
+    pickerStyle: { fontWeight: 'bold' },
+    input: { backgroundColor: '#fff', height: 50, borderRadius: 10, borderWidth: 1, borderColor: '#dee2e6', paddingHorizontal: 15, marginBottom: 20, color: '#2c3e50', fontSize: 14 },
+    
     gestionContainer: { paddingTop: 10 },
-    sectionTitle: { fontSize: 16, fontWeight: 'bold', marginBottom: 15 },
-    inputLabel: { fontSize: 12, fontWeight: 'bold', color: '#6c757d', marginBottom: 5 },
-    input: { backgroundColor: '#fff', height: 45, borderRadius: 8, borderWidth: 1, borderColor: '#ced4da', paddingHorizontal: 15, marginBottom: 15 },
-    btnWarning: { backgroundColor: '#ffc107', height: 50, borderRadius: 8, justifyContent: 'center', alignItems: 'center', shadowColor: '#ffc107', shadowOpacity: 0.3, elevation: 4 },
-    btnWarningText: { color: '#424242', fontWeight: 'bold', fontSize: 16 },
-    divider: { height: 1, backgroundColor: '#eee', marginVertical: 25 },
-    emptyBox: { alignItems: 'center', paddingVertical: 20 },
-    emptyText: { color: '#999', marginTop: 10, textAlign: 'center' },
-    baggageItem: { backgroundColor: '#fff8e1', borderColor: '#ffe082', borderWidth: 1, borderLeftWidth: 5, borderLeftColor: '#ffb300', borderRadius: 8, padding: 15, marginBottom: 15, flexDirection: 'row', alignItems: 'center' },
-    baggageIcon: { fontSize: 30, marginRight: 15 },
-    bagTitle: { fontWeight: 'bold', color: '#333', fontSize: 14 },
-    bagWeight: { color: '#666', fontSize: 12, marginTop: 2, fontWeight: 'bold' }
+    
+    // Botón Principal Naranja
+    btnAuroraAction: { backgroundColor: '#e65100', borderRadius: 25, paddingVertical: 15, alignItems: 'center', shadowColor: '#e65100', shadowOpacity: 0.3, shadowRadius: 8, elevation: 4, marginTop: 5 },
+    btnAuroraText: { color: 'white', fontWeight: 'bold', fontSize: 14, letterSpacing: 1 },
+    
+    divider: { height: 1, backgroundColor: '#edf2f9', marginVertical: 30 },
+    
+    // Estados Vacíos
+    emptyBox: { alignItems: 'center', paddingVertical: 30 },
+    emptyIcon: { fontSize: 45, opacity: 0.2, marginBottom: 10 },
+    emptyText: { color: '#94a3b8', fontSize: 11, fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1, textAlign: 'center' },
+    
+    // Items de Equipaje
+    baggageItem: { backgroundColor: '#ffffff', borderColor: '#edf2f9', borderWidth: 1, borderLeftWidth: 5, borderLeftColor: '#e65100', borderRadius: 10, padding: 20, marginBottom: 15, flexDirection: 'row', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.03, elevation: 2 },
+    baggageIcon: { fontSize: 28, marginRight: 15, opacity: 0.8 },
+    bagTitle: { fontWeight: 'bold', color: '#2c3e50', fontSize: 15, marginBottom: 8 },
+    
+    // Badges
+    badgesContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+    badgeLight: { backgroundColor: '#f8f9fc', borderColor: '#dee2e6', borderWidth: 1, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 15 },
+    badgeLightText: { color: '#2c3e50', fontSize: 10, fontWeight: 'bold' },
+    badgeDark: { backgroundColor: '#0d47a1', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 15 },
+    badgeDarkText: { color: 'white', fontSize: 10, fontWeight: 'bold' }
 });
 
 export default Equipaje;

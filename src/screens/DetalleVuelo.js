@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import axios from 'axios';
-import { API_URL } from '../config'
+import { API_URL } from '../config';
 
 const DetalleVuelo = ({ route, navigation }) => {
     const { id } = route.params;
@@ -25,7 +25,6 @@ const DetalleVuelo = ({ route, navigation }) => {
 
     const cargarVuelo = async () => {
         try {
-            // 🔥 Ajuste 1 y 2: FormData y nombre correcto de la acción
             const formData = new FormData();
             formData.append('action', 'detalle_vuelo');
             formData.append('id', id);
@@ -35,7 +34,6 @@ const DetalleVuelo = ({ route, navigation }) => {
             });
             
             if (response.data.success) {
-                // 🔥 Ajuste 3: Leemos "datos" porque así lo manda el DashboardService.vb
                 setVuelo(response.data.datos);
             }
         } catch (error) {
@@ -54,113 +52,165 @@ const DetalleVuelo = ({ route, navigation }) => {
         const estado = String(vuelo.estado_vuelo || '').toUpperCase();
 
         const formatMsToHM = (ms) => {
-            if (ms < 0) return "0h 0m";
+            if (ms < 0) return "0H 0M";
             const totalMinutos = Math.floor(ms / 60000);
-            return `${Math.floor(totalMinutos / 60)}h ${totalMinutos % 60}m`;
+            return `${Math.floor(totalMinutos / 60)}H ${totalMinutos % 60}M`;
         };
 
         if (estado === "CANCELADO") {
             setProgreso(0);
-            setTxtTranscurrido("Vuelo Cancelado");
+            setTxtTranscurrido("SERVICIO CANCELADO");
             setTxtRestante("--");
             return;
         }
 
         if (ahora < tSalida || estado.includes("PROGRAMADO")) {
             setProgreso(0);
-            setTxtTranscurrido("Aún no despega");
+            setTxtTranscurrido("EN TIERRA / PRE-SALIDA");
             const diff = tSalida - ahora;
-            if (diff > 0) setTxtRestante(`Despega en: ${formatMsToHM(diff)}`);
-            else setTxtRestante("Retrasado en tierra");
+            if (diff > 0) setTxtRestante(`DESPEGUE EN: ${formatMsToHM(diff)}`);
+            else setTxtRestante("RETRASO EN PLATAFORMA");
         } else if (ahora > tLlegada || ["ATERRIZÓ", "ATERRIZADO", "FINALIZADO"].includes(estado)) {
             setProgreso(100);
-            setTxtTranscurrido("Vuelo Finalizado");
-            setTxtRestante("¡Aterrizó con éxito!");
+            setTxtTranscurrido("OPERACIÓN FINALIZADA");
+            setTxtRestante("¡ARRIBO EXITOSO!");
         } else {
             const duracionTotal = tLlegada - tSalida;
             const tiempoPasado = ahora - tSalida;
             setProgreso((tiempoPasado / duracionTotal) * 100);
-            setTxtTranscurrido(`En aire: ${formatMsToHM(tiempoPasado)}`);
-            setTxtRestante(`Aterriza en: ${formatMsToHM(tLlegada - ahora)}`);
+            setTxtTranscurrido(`TIEMPO EN VUELO: ${formatMsToHM(tiempoPasado)}`);
+            setTxtRestante(`ARRIBO EN: ${formatMsToHM(tLlegada - ahora)}`);
         }
     };
 
-    if (cargando) return <ActivityIndicator size="large" color="#0d47a1" style={{ flex: 1, backgroundColor: '#f4f7f6' }} />;
-    if (!vuelo) return <Text style={{ textAlign: 'center', marginTop: 50 }}>Vuelo no encontrado.</Text>;
+    // Función para replicar los colores exactos de los estados de la Web
+    const getEstadoStyles = (estado) => {
+        const stateStr = String(estado).toUpperCase();
+        if (stateStr === 'CANCELADO') return { bg: '#fee2e2', text: '#991b1b', border: '#fecaca' };
+        if (stateStr.includes('RETRASADO')) return { bg: '#ffedd5', text: '#9a3412', border: '#fed7aa' };
+        if (stateStr.includes('ATERRIZADO') || stateStr.includes('ATERRIZÓ') || stateStr.includes('FINALIZADO')) return { bg: '#dcfce7', text: '#166534', border: '#bbf7d0' };
+        if (stateStr.includes('PROGRAMADO')) return { bg: '#fef3c7', text: '#92400e', border: '#fde68a' };
+        return { bg: '#dbeafe', text: '#1e40af', border: '#bfdbfe' }; // Por defecto / ACTIVO
+    };
+
+    if (cargando) return <ActivityIndicator size="large" color="#2c3e50" style={{ flex: 1, backgroundColor: '#f8f9fc', justifyContent: 'center' }} />;
+    if (!vuelo) return <Text style={{ textAlign: 'center', marginTop: 50, color: '#2c3e50', fontWeight: 'bold' }}>Sincronización Interrumpida. Vuelo no encontrado.</Text>;
 
     const escalaIata = vuelo.escala_iata;
+    const badgeStyles = getEstadoStyles(vuelo.estado_vuelo);
 
     return (
         <View style={styles.container}>
+            {/* Top Bar Carbón */}
             <View style={styles.topBar}>
-                <Text style={styles.topBarTitle}>Detalles del Vuelo</Text>
+                <View>
+                    <Text style={styles.topBarTitle}>Radar Operativo GUA</Text>
+                    <Text style={styles.topBarSub}>Monitoreo de Vuelo</Text>
+                </View>
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.btnVolver}>
-                    <Text style={styles.btnVolverText}>← Volver</Text>
+                    <Text style={styles.btnVolverText}>← Radar</Text>
                 </TouchableOpacity>
             </View>
 
-            <ScrollView contentContainerStyle={{ padding: 20 }}>
+            <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
                 <View style={styles.card}>
+                    
+                    {/* Header de la Tarjeta */}
                     <View style={styles.headerRow}>
-                        <View>
-                            <Text style={styles.label}>Operado por {vuelo.aerolinea || 'N/A'}</Text>
+                        <View style={{ flex: 1 }}>
+                            <Text style={styles.label}>Operador Responsable</Text>
+                            <Text style={styles.airlineHead}>{vuelo.aerolinea || 'N/A'}</Text>
                             <Text style={styles.flightCode}>{vuelo.codigo_vuelo || 'N/A'}</Text>
                         </View>
-                        <View style={styles.badge}>
-                            <Text style={styles.badgeText}>{String(vuelo.estado_vuelo || 'DESCONOCIDO').toUpperCase()}</Text>
+                        <View style={{ alignItems: 'flex-end' }}>
+                            <Text style={[styles.label, { marginBottom: 5 }]}>Estado del Servicio</Text>
+                            <View style={[styles.badge, { backgroundColor: badgeStyles.bg, borderColor: badgeStyles.border }]}>
+                                <Text style={[styles.badgeText, { color: badgeStyles.text }]}>{String(vuelo.estado_vuelo || 'DESCONOCIDO').toUpperCase()}</Text>
+                            </View>
                         </View>
                     </View>
 
-                    {/* RUTA Y PROGRESO */}
+                    {/* CAJA DE RUTA Y PROGRESO */}
                     <View style={styles.routeBox}>
                         <View style={styles.routeRow}>
-                            <View>
+                            <View style={{ flex: 1 }}>
                                 <Text style={styles.iata}>{vuelo.origen_iata || '---'}</Text>
                                 <Text style={styles.city}>{vuelo.origen_ciudad || 'Origen'}</Text>
                             </View>
-                            <View style={{ alignItems: 'flex-end' }}>
+                            
+                            <View style={styles.timeBadgeContainer}>
+                                <View style={styles.timeBadge}>
+                                    <Text style={styles.timeBadgeText}>ESTIMADO</Text>
+                                </View>
+                            </View>
+
+                            <View style={{ flex: 1, alignItems: 'flex-end' }}>
                                 <Text style={styles.iata}>{vuelo.destino_iata || '---'}</Text>
                                 <Text style={styles.city}>{vuelo.destino_ciudad || 'Destino'}</Text>
                             </View>
                         </View>
 
+                        {/* ESCALA (Si existe) */}
+                        {escalaIata && (
+                            <View style={{ alignItems: 'center', marginVertical: 10 }}>
+                                <View style={styles.escalaPill}>
+                                    <Text style={styles.escalaLabel}>Escala:</Text>
+                                    <Text style={styles.escalaIataText}>{escalaIata}</Text>
+                                    <Text style={styles.escalaCityText}> {vuelo.escala_ciudad}</Text>
+                                </View>
+                            </View>
+                        )}
+
                         {/* Barra de progreso */}
                         <View style={styles.progressContainer}>
                             <View style={[styles.progressBar, { width: `${progreso}%` }]} />
-                            <Text style={[styles.planeIcon, { left: `${progreso}%`, transform: [{ translateX: -15 }] }]}>✈️</Text>
+                            <Text style={[styles.planeIcon, { left: `${progreso}%`, transform: [{ translateX: -12 }] }]}>✈️</Text>
                         </View>
 
                         <View style={styles.timeRow}>
-                            <Text style={styles.timeText}>{txtTranscurrido}</Text>
-                            <Text style={[styles.timeText, { color: '#e74c3c' }]}>{txtRestante}</Text>
+                            <Text style={styles.timeTextSuccess}>{txtTranscurrido}</Text>
+                            <Text style={styles.timeTextDanger}>{txtRestante}</Text>
                         </View>
                     </View>
 
-                    {/* ESCALA */}
-                    {escalaIata && (
-                        <View style={styles.escalaBox}>
-                            <Text style={{ fontWeight: 'bold', color: '#f57c00' }}>⚠️ Escala Técnica: {escalaIata}</Text>
-                            <Text style={{ fontSize: 12, color: '#666' }}>{vuelo.escala_ciudad}</Text>
+                    {/* SECCIÓN: ITINERARIO */}
+                    <View style={styles.sectionHeader}>
+                        <View style={styles.sectionAccent} />
+                        <Text style={styles.sectionTitle}>Cronograma de Itinerario</Text>
+                    </View>
+                    
+                    <View style={styles.dataRow}>
+                        <View style={{ flex: 1 }}>
+                            <Text style={styles.label}>Salida Programada</Text>
+                            <Text style={styles.dataValue}>{new Date(vuelo.fecha_salida).toLocaleString()}</Text>
                         </View>
-                    )}
-
-                    {/* ITINERARIO */}
-                    <Text style={styles.sectionTitle}>🕒 Itinerario</Text>
-                    <View style={styles.itinerarioRow}>
-                        <View>
-                            <Text style={styles.label}>Salida</Text>
-                            <Text style={styles.dateVal}>{new Date(vuelo.fecha_salida).toLocaleString()}</Text>
-                        </View>
-                        <View style={{ alignItems: 'flex-end' }}>
-                            <Text style={styles.label}>Llegada Estimada</Text>
-                            <Text style={[styles.dateVal, { color: '#0d47a1' }]}>{new Date(vuelo.fecha_llegada).toLocaleString()}</Text>
+                        <View style={{ flex: 1, alignItems: 'flex-end' }}>
+                            <Text style={styles.label}>Arribo Estimado</Text>
+                            <Text style={[styles.dataValue, { color: '#0d47a1' }]}>{new Date(vuelo.fecha_llegada).toLocaleString()}</Text>
                         </View>
                     </View>
 
-                    {/* NAVE */}
-                    <Text style={[styles.sectionTitle, { marginTop: 20 }]}>⚙️ Datos Operativos</Text>
-                    <Text style={styles.label}>Aeronave: <Text style={{ color: '#333' }}>{vuelo.aeronave_modelo || 'N/A'}</Text></Text>
-                    <Text style={styles.label}>Capacidad: <Text style={{ color: '#333' }}>{vuelo.aeronave_capacidad || 0} pasajeros</Text></Text>
+                    <View style={styles.divider} />
+
+                    {/* SECCIÓN: ESPECIFICACIONES TÉCNICAS */}
+                    <View style={styles.sectionHeader}>
+                        <View style={styles.sectionAccent} />
+                        <Text style={styles.sectionTitle}>Especificaciones Técnicas</Text>
+                    </View>
+
+                    <Text style={styles.label}>Empresa Transportista</Text>
+                    <Text style={styles.dataValue}>{vuelo.aerolinea || 'N/A'}</Text>
+
+                    <Text style={styles.label}>Equipo Asignado / Modelo</Text>
+                    <Text style={styles.dataValue}>{vuelo.aeronave_modelo || 'N/A'}</Text>
+
+                    <Text style={styles.label}>Configuración de Pasajeros</Text>
+                    <Text style={[styles.dataValue, { marginBottom: 5 }]}><Text style={{ fontSize: 18 }}>{vuelo.aeronave_capacidad || 0}</Text> Plazas Disponibles</Text>
+
+                    <View style={styles.footerNoteBox}>
+                        <Text style={styles.footerNoteText}>Información actualizada por el Centro de Control de Operaciones Aéreas (CCO) La Aurora GUA.</Text>
+                    </View>
+
                 </View>
             </ScrollView>
         </View>
@@ -168,34 +218,64 @@ const DetalleVuelo = ({ route, navigation }) => {
 };
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#f4f7f6' },
-    topBar: { backgroundColor: '#0d47a1', padding: 20, paddingTop: 50, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-    topBarTitle: { color: 'white', fontSize: 18, fontWeight: 'bold' },
-    btnVolver: { borderColor: 'white', borderWidth: 1, paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20 },
+    container: { flex: 1, backgroundColor: '#f8f9fc' },
+    
+    // Top Bar Carbón
+    topBar: { backgroundColor: '#2c3e50', padding: 20, paddingTop: 50, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.1, elevation: 4 },
+    topBarTitle: { color: 'white', fontSize: 16, fontWeight: 'bold' },
+    topBarSub: { color: '#bdc3c7', fontSize: 12 },
+    btnVolver: { borderColor: '#bdc3c7', borderWidth: 1, paddingHorizontal: 15, paddingVertical: 6, borderRadius: 20 },
     btnVolverText: { color: 'white', fontWeight: 'bold', fontSize: 12 },
     
-    card: { backgroundColor: 'white', borderRadius: 20, padding: 20, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 10, elevation: 5, borderTopWidth: 8, borderTopColor: '#0d47a1' },
-    headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-    label: { fontSize: 12, color: '#90a4ae', fontWeight: 'bold', textTransform: 'uppercase' },
-    flightCode: { fontSize: 32, fontWeight: '900', color: '#0d47a1' },
-    badge: { backgroundColor: '#e3f2fd', paddingHorizontal: 15, paddingVertical: 8, borderRadius: 20 },
-    badgeText: { color: '#0d47a1', fontWeight: 'bold' },
-
-    routeBox: { backgroundColor: '#f8f9fa', borderRadius: 15, padding: 20, borderWidth: 1, borderColor: '#cfd8dc', borderStyle: 'dashed', marginBottom: 20 },
-    routeRow: { flexDirection: 'row', justifyContent: 'space-between' },
-    iata: { fontSize: 30, fontWeight: '900', color: '#2c3e50' },
-    city: { fontSize: 14, color: '#7f8c8d', fontWeight: 'bold' },
+    // Tarjeta Principal
+    card: { backgroundColor: 'white', borderRadius: 20, padding: 25, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 15, elevation: 3, borderWidth: 1, borderColor: '#edf2f9' },
     
-    progressContainer: { height: 10, backgroundColor: '#e9ecef', borderRadius: 5, marginVertical: 20, position: 'relative' },
-    progressBar: { height: '100%', backgroundColor: '#4fc3f7', borderRadius: 5 },
-    planeIcon: { position: 'absolute', top: -12, fontSize: 24 },
-    timeRow: { flexDirection: 'row', justifyContent: 'space-between' },
-    timeText: { fontSize: 12, fontWeight: 'bold', color: '#27ae60' },
+    headerRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 25 },
+    label: { fontSize: 10, color: '#94a3b8', fontWeight: '800', textTransform: 'uppercase', letterSpacing: 1.2, marginBottom: 4 },
+    airlineHead: { fontSize: 14, fontWeight: 'bold', color: '#1e293b' },
+    flightCode: { fontSize: 36, fontWeight: '900', color: '#0f172a', letterSpacing: -1, lineHeight: 40 },
+    
+    // Badges dinámicos
+    badge: { paddingHorizontal: 15, paddingVertical: 8, borderRadius: 30, borderWidth: 1 },
+    badgeText: { fontWeight: '800', fontSize: 11, textTransform: 'uppercase', letterSpacing: 1 },
 
-    escalaBox: { backgroundColor: '#fff8e1', padding: 10, borderRadius: 10, borderWidth: 1, borderColor: '#ffb300', borderStyle: 'dashed', alignItems: 'center', marginBottom: 20 },
-    sectionTitle: { fontSize: 14, fontWeight: '800', color: '#1976d2', textTransform: 'uppercase', marginBottom: 15, borderBottomWidth: 1, borderBottomColor: '#eee', paddingBottom: 5 },
-    itinerarioRow: { flexDirection: 'row', justifyContent: 'space-between' },
-    dateVal: { fontSize: 16, fontWeight: 'bold', color: '#333' }
+    // Caja de Ruta
+    routeBox: { backgroundColor: '#f8fafc', borderRadius: 20, padding: 20, borderWidth: 1, borderColor: '#f1f5f9', marginBottom: 30 },
+    routeRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    iata: { fontSize: 32, fontWeight: '900', color: '#0f172a', letterSpacing: -1 },
+    city: { fontSize: 12, color: '#64748b', fontWeight: 'bold' },
+    
+    timeBadgeContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+    timeBadge: { backgroundColor: '#1e293b', paddingHorizontal: 12, paddingVertical: 5, borderRadius: 15 },
+    timeBadgeText: { color: 'white', fontSize: 10, fontWeight: '800', letterSpacing: 1 },
+
+    // Escala Pill
+    escalaPill: { backgroundColor: '#fffbeb', borderColor: '#fef3c7', borderWidth: 1, borderRadius: 30, paddingHorizontal: 15, paddingVertical: 6, flexDirection: 'row', alignItems: 'center' },
+    escalaLabel: { fontSize: 11, color: '#b45309', fontWeight: 'bold', marginRight: 5 },
+    escalaIataText: { fontSize: 13, color: '#b45309', fontWeight: '900' },
+    escalaCityText: { fontSize: 11, color: '#92400e' },
+
+    // Progreso
+    progressContainer: { height: 8, backgroundColor: '#e2e8f0', borderRadius: 5, marginVertical: 25, position: 'relative' },
+    progressBar: { height: '100%', backgroundColor: '#0d47a1', borderRadius: 5 }, // RN no maneja gradients nativos fácil, usamos el Azul Institucional
+    planeIcon: { position: 'absolute', top: -11, fontSize: 22 },
+    
+    timeRow: { flexDirection: 'row', justifyContent: 'space-between' },
+    timeTextSuccess: { fontSize: 11, fontWeight: 'bold', color: '#16a085', letterSpacing: 0.5 },
+    timeTextDanger: { fontSize: 11, fontWeight: 'bold', color: '#e74c3c', letterSpacing: 0.5 },
+
+    // Secciones
+    sectionHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 15 },
+    sectionAccent: { width: 4, height: 16, backgroundColor: '#0d47a1', borderRadius: 2, marginRight: 8 },
+    sectionTitle: { fontSize: 13, fontWeight: '800', color: '#0d47a1', textTransform: 'uppercase', letterSpacing: 1.5 },
+    
+    dataRow: { flexDirection: 'row', justifyContent: 'space-between' },
+    dataValue: { fontSize: 15, fontWeight: '700', color: '#1e293b', marginBottom: 15 },
+    divider: { height: 1, backgroundColor: '#f1f5f9', marginVertical: 20 },
+
+    // Footer
+    footerNoteBox: { marginTop: 20, backgroundColor: '#f8f9fc', padding: 15, borderRadius: 10, borderWidth: 1, borderColor: '#edf2f9' },
+    footerNoteText: { fontSize: 11, color: '#94a3b8', fontStyle: 'italic', textAlign: 'center' }
 });
 
 export default DetalleVuelo;

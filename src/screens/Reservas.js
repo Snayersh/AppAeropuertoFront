@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert, Image } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { useFocusEffect } from '@react-navigation/native';
 import axios from 'axios';
@@ -70,7 +70,6 @@ const Reservas = ({ navigation }) => {
 
     const cargarIniciales = async (email, token) => {
         try {
-            // 🔥 Ajuste: FormData para promesas paralelas
             const formVuelos = new FormData();
             formVuelos.append('action', 'vuelos_disponibles');
             formVuelos.append('email', email);
@@ -103,7 +102,6 @@ const Reservas = ({ navigation }) => {
             if (!verificandoGuardia && vueloElegido && correoAuth && tokenAuth) {
                 const sincronizarAsientos = async () => {
                     try {
-                        // 🔥 Ajuste: FormData en el motor de sincronización silencioso
                         const formData = new FormData();
                         formData.append('action', 'mapa_asientos');
                         formData.append('idVuelo', vueloElegido);
@@ -144,7 +142,6 @@ const Reservas = ({ navigation }) => {
 
         setCargando(true);
         try {
-            // 🔥 Ajuste: FormData para solicitar el mapa inicial
             const formData = new FormData();
             formData.append('action', 'mapa_asientos');
             formData.append('idVuelo', idVuelo);
@@ -189,13 +186,12 @@ const Reservas = ({ navigation }) => {
         try {
             const asientosFormateados = asientosSeleccionados.map(item => ({ asiento: item.asiento, id_clase: item.id_clase }));
 
-            // 🔥 Ajuste CRÍTICO: FormData y serialización del array de asientos
             const formData = new FormData();
-            formData.append('action', 'crear_reserva');
+            formData.append('action', 'procesar_reserva');
             formData.append('email', correoAuth);
             formData.append('token', tokenAuth);
             formData.append('idVuelo', vueloElegido);
-            formData.append('asientos', JSON.stringify(asientosFormateados)); // Convertimos el array a String JSON
+            formData.append('asientos', JSON.stringify(asientosFormateados));
 
             const response = await axios.post(API_URL, formData, {
                 headers: { 'Content-Type': 'multipart/form-data' }
@@ -251,7 +247,7 @@ const Reservas = ({ navigation }) => {
                 let seatText = codigoAsiento;
                 
                 if (isOcupado) seatStyle.push(styles.seatOccupied);
-                else if (isSeleccionado) { seatStyle.push(styles.seatSelected); seatText = '✖'; } 
+                else if (isSeleccionado) { seatStyle.push(styles.seatSelected); seatText = '✓'; } 
                 else if (isLockedByOther) { seatStyle.push(styles.seatLocked); seatText = '🔒'; } 
                 else if (isDimmed) seatStyle.push(styles.seatDimmed);
 
@@ -281,68 +277,90 @@ const Reservas = ({ navigation }) => {
         return (
             <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
                 <ActivityIndicator size="large" color="#0d47a1" />
-                <Text style={{ marginTop: 10 }}>Conectando con la torre de control...</Text>
+                <Text style={{ marginTop: 15, color: '#6c757d', fontWeight: 'bold' }}>Sincronizando itinerarios...</Text>
             </View>
         );
     }
 
     return (
         <View style={styles.container}>
+            {/* Top Bar Carbón */}
             <View style={styles.topBar}>
-                <Text style={styles.topBarTitle}>🎫 Reservar Vuelo</Text>
+                <View style={styles.topBarLeft}>
+                    <Image source={require('../../assets/icon.png')} style={styles.brandIconMini} />
+                    <Text style={styles.topBarTitle}>Portal de Reservas</Text>
+                </View>
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.btnVolver}>
-                    <Text style={styles.btnVolverText}>← Volver</Text>
+                    <Text style={styles.btnVolverText}>← Inicio</Text>
                 </TouchableOpacity>
             </View>
 
-            <ScrollView contentContainerStyle={{ padding: 20 }}>
+            <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
+                
                 <View style={styles.bookingCard}>
-                    <Text style={styles.mainTitle}>Encuentra tu destino</Text>
-                    <Text style={styles.subTitle}>Reserva tu boleto y elige tu asiento.</Text>
+                    
+                    {/* Encabezado */}
+                    <View style={styles.headerContainer}>
+                        <View style={styles.headerAccent} />
+                        <Text style={styles.mainTitle}>Encuentre su Destino</Text>
+                        <Text style={styles.subTitle}>Gestión de itinerarios en tiempo real</Text>
+                    </View>
 
-                    <Text style={styles.label}>1. Vuelos Disponibles</Text>
+                    {/* Paso 1: Filtros */}
+                    <Text style={styles.sectionSubtitle}>1. PARÁMETROS DEL VIAJE</Text>
+                    
+                    <Text style={styles.labelCustom}>Vuelos Disponibles</Text>
                     <View style={styles.pickerContainer}>
                         <Picker selectedValue={vueloElegido} onValueChange={handleVueloChange} dropdownIconColor="#0d47a1">
-                            <Picker.Item label="-- Selecciona tu vuelo --" value="" color="#888" />
-                            {/* 🔥 Ajuste: Lectura limpia del mapeo en minúsculas */}
+                            <Picker.Item label="-- Seleccione su vuelo --" value="" color="#888" />
                             {vuelos.map((v) => <Picker.Item key={v.id_vuelo} label={v.detalle} value={v.id_vuelo} />)}
                         </Picker>
                     </View>
 
                     {mapaVisible && (
                         <>
-                            <Text style={[styles.label, { marginTop: 15 }]}>2. Filtrar por Clase (Opcional)</Text>
+                            <Text style={[styles.labelCustom, { marginTop: 20 }]}>Clase de Cabina Preferida</Text>
                             <View style={styles.pickerContainer}>
                                 <Picker selectedValue={claseElegida} onValueChange={setClaseElegida} dropdownIconColor="#0d47a1">
                                     <Picker.Item label="-- Mostrar Todo --" value="" color="#888" />
-                                    {/* 🔥 Ajuste: Lectura limpia del mapeo en minúsculas */}
                                     {clases.map((c) => <Picker.Item key={c.id_tipo_boleto} label={c.nombre} value={c.id_tipo_boleto.toString()} />)}
                                 </Picker>
                             </View>
 
-                            <Text style={styles.labelCenter}>3. Selección de Asiento</Text>
+                            {/* Paso 2: Mapa de Asientos */}
+                            <Text style={[styles.sectionSubtitle, { marginTop: 40, textAlign: 'center' }]}>2. SELECCIÓN DE UBICACIÓN</Text>
+                            
+                            {/* Leyenda */}
                             <View style={styles.leyendaContainer}>
-                                <View style={styles.leyendaItem}><View style={[styles.leyendaCaja, styles.seatPrimera]} /><Text style={styles.leyendaTexto}> Primera</Text></View>
-                                <View style={styles.leyendaItem}><View style={[styles.leyendaCaja, styles.seatEjecutiva]} /><Text style={styles.leyendaTexto}> Ejecutiva</Text></View>
-                                <View style={styles.leyendaItem}><View style={[styles.leyendaCaja, styles.seatEconomica]} /><Text style={styles.leyendaTexto}> Eco.</Text></View>
-                                <View style={styles.leyendaItem}><View style={[styles.leyendaCaja, styles.seatOccupied]} /><Text style={styles.leyendaTexto}> Ocupado</Text></View>
-                                <View style={styles.leyendaItem}><View style={[styles.leyendaCaja, styles.seatLocked]} /><Text style={styles.leyendaTexto}> En Proceso</Text></View>
+                                <View style={styles.leyendaItem}><View style={[styles.leyendaCaja, { backgroundColor: '#fffdf0', borderColor: '#ffd700' }]} /><Text style={styles.leyendaTexto}> Primera</Text></View>
+                                <View style={styles.leyendaItem}><View style={[styles.leyendaCaja, { backgroundColor: '#fdf0ff', borderColor: '#ab47bc' }]} /><Text style={styles.leyendaTexto}> Ejecutiva</Text></View>
+                                <View style={styles.leyendaItem}><View style={[styles.leyendaCaja, { backgroundColor: '#f0f7ff', borderColor: '#0d47a1' }]} /><Text style={styles.leyendaTexto}> Económica</Text></View>
+                                <View style={styles.leyendaItem}><View style={[styles.leyendaCaja, { backgroundColor: '#f1f3f5', borderColor: '#dee2e6', borderStyle: 'dashed' }]} /><Text style={styles.leyendaTexto}> Ocupado</Text></View>
+                                <View style={styles.leyendaItem}><View style={[styles.leyendaCaja, { backgroundColor: '#e65100', borderColor: '#bf360c' }]} /><Text style={styles.leyendaTexto}> Bloqueado</Text></View>
                             </View>
 
-                            {cargando ? <ActivityIndicator size="small" color="#0d47a1" style={{ marginVertical: 20 }} /> : renderAvion()}
+                            {/* Fuselaje */}
+                            {cargando ? (
+                                <ActivityIndicator size="large" color="#0d47a1" style={{ marginVertical: 30 }} />
+                            ) : (
+                                renderAvion()
+                            )}
 
+                            {/* Resumen de Precio */}
                             {asientosSeleccionados.length > 0 && (
                                 <View style={styles.priceBox}>
-                                    <Text style={styles.priceText}>Total Estimado: <Text style={styles.priceNumber}>Q {totalPagar.toFixed(2)}</Text></Text>
-                                    <Text style={styles.priceDetail}>{asientosSeleccionados.length} asiento(s): {asientosSeleccionados.map(a => a.asiento).join(', ')}</Text>
+                                    <Text style={styles.labelCustom}>INVERSIÓN ESTIMADA</Text>
+                                    <Text style={styles.priceNumber}>Q {totalPagar.toFixed(2).replace(/\d(?=(\d{3})+\.)/g, '$&,')}</Text>
+                                    <Text style={styles.priceDetail}>{asientosSeleccionados.length} asiento(s) seleccionado(s)</Text>
                                 </View>
                             )}
 
+                            {/* Botón de Confirmación */}
                             <TouchableOpacity 
-                                style={[styles.btnReservar, asientosSeleccionados.length === 0 && styles.btnReservarDisabled]} 
+                                style={[styles.btnAuroraBook, asientosSeleccionados.length === 0 && styles.btnAuroraBookDisabled]} 
                                 onPress={confirmarReserva} disabled={asientosSeleccionados.length === 0 || guardando}
                             >
-                                {guardando ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnReservarText}>Confirmar Reserva</Text>}
+                                {guardando ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnAuroraBookText}>CONFIRMAR RESERVA</Text>}
                             </TouchableOpacity>
                         </>
                     )}
@@ -353,44 +371,69 @@ const Reservas = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#f4f7f6' },
-    topBar: { backgroundColor: '#0d47a1', padding: 20, paddingTop: 50, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-    topBarTitle: { color: 'white', fontSize: 18, fontWeight: 'bold' },
-    btnVolver: { borderColor: 'white', borderWidth: 1, paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20 },
+    container: { flex: 1, backgroundColor: '#f8f9fc' },
+    
+    // Top Bar Carbón
+    topBar: { backgroundColor: '#2c3e50', padding: 20, paddingTop: 50, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.1, elevation: 5 },
+    topBarLeft: { flexDirection: 'row', alignItems: 'center' },
+    brandIconMini: { width: 30, height: 30, borderRadius: 6, marginRight: 10, backgroundColor: 'white' },
+    topBarTitle: { color: 'white', fontSize: 15, fontWeight: 'bold' },
+    btnVolver: { borderColor: '#bdc3c7', borderWidth: 1, paddingHorizontal: 15, paddingVertical: 6, borderRadius: 20 },
     btnVolverText: { color: 'white', fontWeight: 'bold', fontSize: 12 },
-    bookingCard: { backgroundColor: 'white', borderRadius: 15, padding: 20, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 10, elevation: 3, borderTopWidth: 5, borderTopColor: '#1976d2', marginBottom: 30 },
-    mainTitle: { fontSize: 24, fontWeight: 'bold', color: '#0d47a1', textAlign: 'center' },
-    subTitle: { fontSize: 14, color: '#666', textAlign: 'center', marginBottom: 20 },
-    label: { fontSize: 14, fontWeight: 'bold', color: '#6c757d', marginBottom: 8 },
-    labelCenter: { fontSize: 16, fontWeight: 'bold', color: '#0d47a1', textAlign: 'center', marginTop: 25, marginBottom: 15 },
-    pickerContainer: { borderWidth: 1, borderColor: '#ced4da', borderRadius: 8, backgroundColor: '#f8f9fa', overflow: 'hidden' },
-    leyendaContainer: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', marginBottom: 20, gap: 10 },
+    
+    // Tarjeta Principal
+    bookingCard: { backgroundColor: 'white', borderRadius: 15, padding: 25, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 15, elevation: 3, borderWidth: 1, borderColor: '#edf2f9', marginBottom: 20 },
+    
+    // Encabezados
+    headerContainer: { alignItems: 'center', marginBottom: 35 },
+    headerAccent: { width: 60, height: 5, backgroundColor: '#0d47a1', borderRadius: 10, marginBottom: 15 },
+    mainTitle: { fontSize: 22, fontWeight: 'bold', color: '#2c3e50', letterSpacing: -0.5 },
+    subTitle: { color: '#6c757d', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, marginTop: 5, fontWeight: 'bold' },
+    
+    sectionSubtitle: { fontSize: 13, fontWeight: '800', color: '#0d47a1', textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 15 },
+    labelCustom: { fontSize: 11, fontWeight: '800', color: '#6c757d', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 },
+    
+    pickerContainer: { height: 48, backgroundColor: '#fff', borderRadius: 10, borderWidth: 1, borderColor: '#dee2e6', justifyContent: 'center' },
+    
+    // Leyenda
+    leyendaContainer: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', marginBottom: 25, gap: 12 },
     leyendaItem: { flexDirection: 'row', alignItems: 'center' },
-    leyendaCaja: { width: 15, height: 15, borderRadius: 3, borderWidth: 1 },
-    leyendaTexto: { fontSize: 12, fontWeight: 'bold', color: '#555' },
-    planeFuselage: { backgroundColor: '#eef2f5', borderRadius: 30, paddingVertical: 30, paddingHorizontal: 15, borderWidth: 2, borderColor: '#cfd8dc', alignSelf: 'center', minWidth: 250 },
-    seatRow: { flexDirection: 'row', justifyContent: 'center', marginBottom: 12 },
+    leyendaCaja: { width: 12, height: 12, borderRadius: 3, borderWidth: 1 },
+    leyendaTexto: { fontSize: 10, fontWeight: '800', color: '#6c757d', textTransform: 'uppercase' },
+    
+    // Fuselaje del Avión
+    planeFuselage: { backgroundColor: '#ffffff', borderRadius: 50, borderBottomLeftRadius: 15, borderBottomRightRadius: 15, paddingVertical: 40, paddingHorizontal: 20, borderWidth: 1, borderColor: '#dee2e6', alignSelf: 'center', minWidth: 260, shadowColor: '#000', shadowOpacity: 0.02, elevation: 1 },
+    seatRow: { flexDirection: 'row', justifyContent: 'center', marginBottom: 10 },
     aisle: { width: 25 },
-    seat: { width: 40, height: 40, borderRadius: 8, marginHorizontal: 5, alignItems: 'center', justifyContent: 'center', borderWidth: 2 },
-    seatText: { fontSize: 10, fontWeight: 'bold' },
-    seatPrimera: { backgroundColor: '#fffde7', borderColor: '#ffd700' },
-    seatEjecutiva: { backgroundColor: '#f3e5f5', borderColor: '#ab47bc' },
-    seatEconomica: { backgroundColor: '#e3f2fd', borderColor: '#90caf9' },
-    seatOccupied: { backgroundColor: '#e0e0e0', borderColor: '#bdbdbd' },
-    seatTextOccupied: { color: '#9e9e9e', textDecorationLine: 'line-through' },
+    
+    // Asientos Base
+    seat: { width: 38, height: 38, borderRadius: 8, marginHorizontal: 4, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#e0e0e0', backgroundColor: 'white' },
+    seatText: { fontSize: 10, fontWeight: '800', color: '#2c3e50' },
+    
+    // Clases
+    seatPrimera: { borderBottomWidth: 3, borderBottomColor: '#ffd700', backgroundColor: '#fffdf0' },
+    seatEjecutiva: { borderBottomWidth: 3, borderBottomColor: '#ab47bc', backgroundColor: '#fdf0ff' },
+    seatEconomica: { borderBottomWidth: 3, borderBottomColor: '#0d47a1', backgroundColor: '#f0f7ff' },
+    
+    // Estados Asientos
+    seatOccupied: { backgroundColor: '#f1f3f5', borderColor: '#dee2e6', borderStyle: 'dashed' },
+    seatTextOccupied: { color: '#adb5bd', textDecorationLine: 'line-through' },
     seatSelected: { backgroundColor: '#0d47a1', borderColor: '#0d47a1', transform: [{ scale: 1.1 }] },
     seatTextSelected: { color: 'white', fontSize: 14 },
-    seatLocked: { backgroundColor: '#ff9800', borderColor: '#f57c00' },
-    seatTextLocked: { color: 'white', fontSize: 14 },
-    seatDimmed: { backgroundColor: '#f5f5f5', borderColor: '#e0e0e0', opacity: 0.3 },
-    seatTextDimmed: { color: '#bdbdbd' },
-    priceBox: { backgroundColor: '#e8f5e9', borderColor: '#4caf50', borderWidth: 2, borderRadius: 10, padding: 15, marginTop: 20, alignItems: 'center' },
-    priceText: { fontSize: 16, color: '#333', fontWeight: 'bold' },
-    priceNumber: { fontSize: 22, color: '#2e7d32' },
-    priceDetail: { fontSize: 12, color: '#666', marginTop: 5, fontWeight: 'bold' },
-    btnReservar: { backgroundColor: '#0d47a1', height: 50, borderRadius: 8, alignItems: 'center', justifyContent: 'center', marginTop: 25, shadowColor: '#0d47a1', shadowOpacity: 0.3, elevation: 5 },
-    btnReservarDisabled: { backgroundColor: '#90caf9', shadowOpacity: 0 },
-    btnReservarText: { color: 'white', fontWeight: 'bold', fontSize: 16 }
+    seatLocked: { backgroundColor: '#e65100', borderColor: '#bf360c' },
+    seatTextLocked: { color: 'white', fontSize: 12 },
+    seatDimmed: { opacity: 0.2 },
+    seatTextDimmed: { color: '#2c3e50' },
+    
+    // Caja de Precio
+    priceBox: { backgroundColor: '#f8f9fc', borderColor: '#edf2f9', borderWidth: 1, borderRadius: 12, padding: 20, marginTop: 30, alignItems: 'center' },
+    priceNumber: { fontSize: 26, color: '#2c3e50', fontWeight: '900', marginVertical: 5 },
+    priceDetail: { fontSize: 12, color: '#6c757d', fontWeight: 'bold' },
+    
+    // Botón Reservar (Píldora)
+    btnAuroraBook: { backgroundColor: '#0d47a1', height: 50, borderRadius: 25, alignItems: 'center', justifyContent: 'center', marginTop: 25, shadowColor: '#0d47a1', shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
+    btnAuroraBookDisabled: { backgroundColor: '#bdc3c7', shadowOpacity: 0 },
+    btnAuroraBookText: { color: 'white', fontWeight: '900', fontSize: 13, textTransform: 'uppercase', letterSpacing: 1 }
 });
 
 export default Reservas;

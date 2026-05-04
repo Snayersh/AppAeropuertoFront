@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, FlatList, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, FlatList, TouchableOpacity, ActivityIndicator, Alert, Image } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
@@ -63,7 +63,6 @@ const Inicio = ({ navigation }) => {
     const cargarDatos = async () => {
         setCargando(true);
         try {
-            // 🔥 Ajuste 1 y 2: UNA SOLA LLAMADA para traer estadísticas y tabla en un solo viaje
             const formData = new FormData();
             formData.append('action', 'radar_vuelos');
 
@@ -72,12 +71,9 @@ const Inicio = ({ navigation }) => {
             });
             
             if (response.data.success) {
-                // Llenamos las estadísticas
                 setEstadisticas(response.data.estadisticas);
 
-                // 🔥 Ajuste 3: Mapeo limpio usando solo las variables en minúsculas de nuestro nuevo Backend
                 const vuelosFormateados = response.data.radar_vuelos.map(v => {
-                    
                     let fechaRaw = v.fecha_salida || '';
                     let horaMostrar = '--:--';
                     
@@ -92,7 +88,7 @@ const Inicio = ({ navigation }) => {
                         id: v.id_vuelo || 0, 
                         numero_vuelo: v.codigo_vuelo || 'N/A',
                         aerolinea: v.aerolinea || 'La Aurora',
-                        tipo: (String(v.es_llegada) === '1') ? 'Llegada' : 'Salida', // Depende de cómo lo maneje tu SP
+                        tipo: (String(v.es_llegada) === '1') ? 'Llegada' : 'Salida', 
                         ruta: (v.origen_iata && v.destino_iata) ? `${v.origen_iata} ➔ ${v.destino_iata}` : 'Ruta',
                         hora: horaMostrar, 
                         estado: String(v.estado_vuelo || '').toUpperCase().trim() 
@@ -134,12 +130,11 @@ const Inicio = ({ navigation }) => {
 
     return (
         <View style={styles.container}>
-            <View style={styles.header}>
-                <View style={{ flex: 1 }}>
-                    <Text style={styles.title}>Centro de Control GUA</Text>
-                    <Text style={styles.subtitle}>
-                        {usuario ? `Hola, ${usuario.nombre}` : 'Bienvenido, Invitado'}
-                    </Text>
+            {/* Barra Superior estilo Web */}
+            <View style={styles.topBar}>
+                <View style={styles.brandContainer}>
+                    <Image source={require('../../assets/icon.png')} style={styles.brandLogo} />
+                    <Text style={styles.brandText}>LA AURORA</Text>
                 </View>
 
                 {usuario ? (
@@ -153,116 +148,144 @@ const Inicio = ({ navigation }) => {
                 )}
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={false}>
-                <View style={styles.generalMenuContainer}>
-                    <TouchableOpacity style={styles.btnRadarGiga} onPress={() => navigation.navigate('Radar')}>
-                        <Text style={styles.radarIcon}>🌍</Text>
-                        <Text style={styles.radarText}>Abrir Radar en Vivo</Text>
-                    </TouchableOpacity>
-                </View>
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
+                
+                <View style={styles.contentPadding}>
+                    {/* Banner Institucional */}
+                    <Image source={require('../../assets/banner.png')} style={styles.bannerImage} />
 
-                {usuario && (
-                    <View style={styles.menuClienteContainer}>
-                        <Text style={styles.sectionTitle}>Mi Cuenta</Text>
-                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.menuScroll}>
-                            <TouchableOpacity style={styles.menuBtn} onPress={() => navigation.navigate('MiPerfil')}>
-                                <Text style={styles.menuIcon}>👤</Text>
-                                <Text style={styles.menuText}>Mi Perfil</Text>
+                    {/* Menú de Usuario */}
+                    {usuario && (
+                        <View style={styles.menuSeccion}>
+                            <Text style={styles.sectionTitle}>MÓDULO PASAJERO</Text>
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                                <TouchableOpacity style={styles.menuCard} onPress={() => navigation.navigate('MiPerfil')}>
+                                    <Text style={styles.menuIcon}>👤</Text>
+                                    <Text style={styles.menuText}>Mi Perfil</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={styles.menuCard} onPress={() => navigation.navigate('Reservas')}>
+                                    <Text style={styles.menuIcon}>🛒</Text>
+                                    <Text style={styles.menuText}>Reservar</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={styles.menuCard} onPress={() => navigation.navigate('MisBoletos')}>
+                                    <Text style={styles.menuIcon}>🎫</Text>
+                                    <Text style={styles.menuText}>Mis Boletos</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={styles.menuCard} onPress={() => navigation.navigate('Pagos')}>
+                                    <Text style={styles.menuIcon}>💳</Text>
+                                    <Text style={styles.menuText}>Pagar</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={styles.menuCard} onPress={() => navigation.navigate('Equipaje')}>
+                                    <Text style={styles.menuIcon}>🧳</Text>
+                                    <Text style={styles.menuText}>Equipaje</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={styles.menuCard} onPress={() => navigation.navigate('MisFacturas')}>
+                                    <Text style={styles.menuIcon}>🧾</Text>
+                                    <Text style={styles.menuText}>Facturas</Text>
+                                </TouchableOpacity>
+                                {/* NUEVO BOTÓN DE SOPORTE */}
+                                <TouchableOpacity style={styles.menuCard} onPress={() => navigation.navigate('SoporteTickets')}>
+                                    <Text style={styles.menuIcon}>🎧</Text>
+                                    <Text style={styles.menuText}>Soporte</Text>
+                                </TouchableOpacity>
+                            </ScrollView>
+                        </View>
+                    )}
+
+                    {/* Tarjetas de Estadísticas Estilo Web */}
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.statsScroll}>
+                        <View style={styles.statCard}>
+                            <View>
+                                <Text style={styles.statTitle}>VUELOS ACTIVOS</Text>
+                                <Text style={styles.statValue}>{estadisticas.activos}</Text>
+                            </View>
+                            <Text style={styles.statEmoji}>📡</Text>
+                        </View>
+                        <View style={styles.statCard}>
+                            <View>
+                                <Text style={styles.statTitle}>LLEGADAS HOY</Text>
+                                <Text style={[styles.statValue, { color: '#0d47a1' }]}>{estadisticas.llegadas}</Text>
+                            </View>
+                            <Text style={styles.statEmoji}>🛬</Text>
+                        </View>
+                        <View style={styles.statCard}>
+                            <View>
+                                <Text style={styles.statTitle}>SALIDAS HOY</Text>
+                                <Text style={[styles.statValue, { color: '#e65100' }]}>{estadisticas.salidas}</Text>
+                            </View>
+                            <Text style={styles.statEmoji}>🛫</Text>
+                        </View>
+                    </ScrollView>
+
+                    {/* Tarjeta de Monitoreo (Blanca, redondeada, igual a la web) */}
+                    <View style={styles.monitoringCard}>
+                        
+                        {/* Cabecera del Radar y Botón Giga */}
+                        <View style={styles.monitoringHeader}>
+                            <View style={styles.liveWrapper}>
+                                <View style={styles.liveDot} />
+                                <Text style={styles.monitoringTitle}>Monitoreo en Tiempo Real</Text>
+                            </View>
+                            <TouchableOpacity style={styles.btnRadar} onPress={() => navigation.navigate('Radar')}>
+                                <Text style={styles.btnRadarText}>🌍 Abrir Radar Completo</Text>
                             </TouchableOpacity>
-                            <TouchableOpacity style={[styles.menuBtn, { borderColor: '#f39c12' }]} onPress={() => navigation.navigate('Reservas')}>
-                                <Text style={styles.menuIcon}>🛒</Text>
-                                <Text style={[styles.menuText, { color: '#f39c12' }]}>Reservar</Text>
+                        </View>
+
+                        {/* Filtros: Llegadas / Salidas */}
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filtrosScroll}>
+                            <TouchableOpacity style={[styles.chipBase, filtrosTipo.llegada ? styles.chipLlegadaOn : styles.chipOff]} onPress={() => toggleTipo('llegada')}>
+                                <Text style={[styles.chipText, filtrosTipo.llegada ? styles.chipTextOn : styles.chipTextOff]}>🛬 Llegadas</Text>
                             </TouchableOpacity>
-                            <TouchableOpacity style={styles.menuBtn} onPress={() => navigation.navigate('MisBoletos')}>
-                                <Text style={styles.menuIcon}>🎫</Text>
-                                <Text style={styles.menuText}>Mis Boletos</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity style={[styles.menuBtn, { borderColor: '#27ae60' }]} onPress={() => navigation.navigate('Pagos')}>
-                                <Text style={styles.menuIcon}>💳</Text>
-                                <Text style={[styles.menuText, { color: '#27ae60' }]}>Pagar</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity style={styles.menuBtn} onPress={() => navigation.navigate('Equipaje')}>
-                                <Text style={styles.menuIcon}>🧳</Text>
-                                <Text style={styles.menuText}>Equipaje</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity style={styles.menuBtn} onPress={() => navigation.navigate('MisFacturas')}>
-                                <Text style={styles.menuIcon}>🧾</Text>
-                                <Text style={styles.menuText}>Facturas</Text>
+                            <TouchableOpacity style={[styles.chipBase, filtrosTipo.salida ? styles.chipSalidaOn : styles.chipOff]} onPress={() => toggleTipo('salida')}>
+                                <Text style={[styles.chipText, filtrosTipo.salida ? styles.chipTextOn : styles.chipTextOff]}>🛫 Salidas</Text>
                             </TouchableOpacity>
                         </ScrollView>
+
+                        {/* Filtros: Estados */}
+                        <Text style={styles.filtroSubtitle}>FILTRAR ESTADOS:</Text>
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filtrosScroll}>
+                            <TouchableOpacity style={[styles.chipBase, filtrosEstado.programado ? styles.chipBlueOn : styles.chipOff]} onPress={() => toggleEstado('programado')}>
+                                <Text style={[styles.chipText, filtrosEstado.programado ? styles.chipTextOn : styles.chipTextOff]}>Programado</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={[styles.chipBase, filtrosEstado.abordando_vuelo ? styles.chipBlueOn : styles.chipOff]} onPress={() => toggleEstado('abordando_vuelo')}>
+                                <Text style={[styles.chipText, filtrosEstado.abordando_vuelo ? styles.chipTextOn : styles.chipTextOff]}>En Vuelo/Abordando</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={[styles.chipBase, filtrosEstado.aterrizado ? styles.chipBlueOn : styles.chipOff]} onPress={() => toggleEstado('aterrizado')}>
+                                <Text style={[styles.chipText, filtrosEstado.aterrizado ? styles.chipTextOn : styles.chipTextOff]}>Aterrizado</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={[styles.chipBase, filtrosEstado.retrasado ? styles.chipWarningOn : styles.chipOff]} onPress={() => toggleEstado('retrasado')}>
+                                <Text style={[styles.chipText, filtrosEstado.retrasado ? styles.chipTextOn : styles.chipTextOff]}>Retrasado</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={[styles.chipBase, filtrosEstado.cancelado ? styles.chipDangerOn : styles.chipOff]} onPress={() => toggleEstado('cancelado')}>
+                                <Text style={[styles.chipText, filtrosEstado.cancelado ? styles.chipTextOn : styles.chipTextOff]}>Cancelado</Text>
+                            </TouchableOpacity>
+                        </ScrollView>
+
+                        {/* Lista de Vuelos */}
+                        {cargando ? (
+                            <ActivityIndicator size="large" color="#0d47a1" style={{ marginVertical: 40 }} />
+                        ) : (
+                            <FlatList
+                                data={vuelosFiltrados}
+                                keyExtractor={(item) => item.id.toString()}
+                                scrollEnabled={false}
+                                renderItem={({ item }) => (
+                                    <TouchableOpacity 
+                                        activeOpacity={0.8} 
+                                        onPress={() => navigation.navigate('DetalleVuelo', { id: item.id })}
+                                    >
+                                        <VueloCard vuelo={item} />
+                                    </TouchableOpacity>
+                                )}
+                                ListEmptyComponent={
+                                    <View style={styles.emptyContainer}>
+                                        <Text style={{ fontSize: 30, opacity: 0.5, marginBottom: 10 }}>📭</Text>
+                                        <Text style={styles.emptyText}>No hay vuelos que coincidan con los filtros.</Text>
+                                    </View>
+                                }
+                            />
+                        )}
                     </View>
-                )}
-
-                <View style={[styles.statsContainer, { marginTop: 15 }]}>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                        <View style={[styles.statCard, { backgroundColor: '#2c3e50' }]}>
-                            <Text style={styles.statLabel}>VUELOS ACTIVOS</Text>
-                            <Text style={styles.statValue}>{estadisticas.activos} 📡</Text>
-                        </View>
-                        <View style={[styles.statCard, { backgroundColor: '#27ae60' }]}>
-                            <Text style={styles.statLabel}>LLEGADAS HOY</Text>
-                            <Text style={styles.statValue}>{estadisticas.llegadas} 🛬</Text>
-                        </View>
-                        <View style={[styles.statCard, { backgroundColor: '#f1c40f' }]}>
-                            <Text style={[styles.statLabel, { color: '#333' }]}>SALIDAS HOY</Text>
-                            <Text style={[styles.statValue, { color: '#000' }]}>{estadisticas.salidas} 🛫</Text>
-                        </View>
-                    </ScrollView>
-                </View>
-
-                <View style={styles.filtrosAvanzadosContainer}>
-                    <Text style={styles.filtroLabel}>Filtros de Tablero:</Text>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }}>
-                        <TouchableOpacity style={[styles.chipBase, filtrosTipo.llegada ? styles.chipLlegadaOn : styles.chipOff]} onPress={() => toggleTipo('llegada')}>
-                            <Text style={[styles.chipText, filtrosTipo.llegada ? styles.chipTextOn : styles.chipTextOff]}>🛬 Llegadas</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={[styles.chipBase, filtrosTipo.salida ? styles.chipSalidaOn : styles.chipOff]} onPress={() => toggleTipo('salida')}>
-                            <Text style={[styles.chipText, filtrosTipo.salida ? styles.chipTextDarkOn : styles.chipTextOff]}>🛫 Salidas</Text>
-                        </TouchableOpacity>
-                    </ScrollView>
-
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                        <TouchableOpacity style={[styles.chipBase, filtrosEstado.programado ? styles.chipEstadoOn : styles.chipOff]} onPress={() => toggleEstado('programado')}>
-                            <Text style={[styles.chipText, filtrosEstado.programado ? styles.chipTextOn : styles.chipTextOff]}>Programado</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={[styles.chipBase, filtrosEstado.abordando_vuelo ? styles.chipEstadoOn : styles.chipOff]} onPress={() => toggleEstado('abordando_vuelo')}>
-                            <Text style={[styles.chipText, filtrosEstado.abordando_vuelo ? styles.chipTextOn : styles.chipTextOff]}>En Vuelo/Abordando</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={[styles.chipBase, filtrosEstado.aterrizado ? styles.chipEstadoOn : styles.chipOff]} onPress={() => toggleEstado('aterrizado')}>
-                            <Text style={[styles.chipText, filtrosEstado.aterrizado ? styles.chipTextOn : styles.chipTextOff]}>Aterrizado</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={[styles.chipBase, filtrosEstado.retrasado ? styles.chipRetrasoOn : styles.chipOff]} onPress={() => toggleEstado('retrasado')}>
-                            <Text style={[styles.chipText, filtrosEstado.retrasado ? styles.chipTextDarkOn : styles.chipTextOff]}>Retrasado</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={[styles.chipBase, filtrosEstado.cancelado ? styles.chipCancelaOn : styles.chipOff]} onPress={() => toggleEstado('cancelado')}>
-                            <Text style={[styles.chipText, filtrosEstado.cancelado ? styles.chipTextOn : styles.chipTextOff]}>Cancelado</Text>
-                        </TouchableOpacity>
-                    </ScrollView>
-                </View>
-
-                <View style={styles.listContainer}>
-                    <View style={styles.listHeader}>
-                        <View style={styles.liveIndicator} />
-                        <Text style={styles.listTitle}>Monitoreo en Tiempo Real</Text>
-                    </View>
-                    {cargando ? (
-                        <ActivityIndicator size="large" color="#0d47a1" style={{ marginTop: 50 }} />
-                    ) : (
-                        <FlatList
-                            data={vuelosFiltrados}
-                            keyExtractor={(item) => item.id.toString()}
-                            scrollEnabled={false}
-                            renderItem={({ item }) => (
-                                <TouchableOpacity 
-                                    activeOpacity={0.8} 
-                                    onPress={() => navigation.navigate('DetalleVuelo', { id: item.id })}
-                                >
-                                    <VueloCard vuelo={item} />
-                                </TouchableOpacity>
-                            )}
-                            ListEmptyComponent={<Text style={{ textAlign: 'center', marginTop: 50, color: '#666' }}>No hay vuelos que coincidan.</Text>}
-                        />
-                    )}
                 </View>
             </ScrollView>
         </View>
@@ -270,45 +293,67 @@ const Inicio = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#f4f7f6' },
-    header: { backgroundColor: '#0d47a1', padding: 20, paddingTop: 50, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderBottomLeftRadius: 20, borderBottomRightRadius: 20, zIndex: 10 },
-    title: { color: 'white', fontSize: 20, fontWeight: 'bold' },
-    subtitle: { color: 'rgba(255,255,255,0.7)', fontSize: 14, marginTop: 5 },
-    btnLogin: { backgroundColor: 'white', paddingHorizontal: 15, paddingVertical: 8, borderRadius: 20 },
-    btnLoginText: { color: '#0d47a1', fontWeight: 'bold' },
-    btnLogout: { backgroundColor: '#e74c3c', paddingHorizontal: 15, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: '#c0392b' },
-    btnLogoutText: { color: 'white', fontWeight: 'bold' },
-    generalMenuContainer: { padding: 15, marginTop: -15, zIndex: 9 },
-    btnRadarGiga: { backgroundColor: '#1e272e', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 15, borderRadius: 15, shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 5, elevation: 5 },
-    radarIcon: { fontSize: 24, marginRight: 10 },
-    radarText: { color: '#4bcffa', fontSize: 16, fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1 },
-    menuClienteContainer: { paddingBottom: 15, backgroundColor: 'white', borderBottomWidth: 1, borderBottomColor: '#eee' },
-    sectionTitle: { fontSize: 14, fontWeight: 'bold', color: '#666', marginLeft: 15, marginBottom: 10, marginTop: 10, textTransform: 'uppercase' },
-    menuScroll: { paddingLeft: 15 },
-    menuBtn: { alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff', borderWidth: 1, borderColor: '#ddd', borderRadius: 12, paddingVertical: 10, paddingHorizontal: 15, marginRight: 10, minWidth: 90, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 5, elevation: 2 },
-    menuIcon: { fontSize: 24, marginBottom: 5 },
-    menuText: { fontSize: 12, fontWeight: 'bold', color: '#333' },
-    statsContainer: { paddingLeft: 15, zIndex: 10, marginBottom: 15 },
-    statCard: { width: 160, height: 90, padding: 15, borderRadius: 15, marginRight: 15, justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 5, elevation: 5 },
-    statLabel: { color: 'rgba(255,255,255,0.7)', fontSize: 11, fontWeight: 'bold', marginBottom: 5, letterSpacing: 1 },
-    statValue: { color: 'white', fontSize: 24, fontWeight: 'bold' },
-    filtrosAvanzadosContainer: { paddingHorizontal: 15, marginBottom: 20, backgroundColor: '#fff', paddingVertical: 15, borderTopWidth: 1, borderBottomWidth: 1, borderColor: '#eee' },
-    filtroLabel: { fontSize: 12, fontWeight: 'bold', color: '#888', marginBottom: 10, textTransform: 'uppercase' },
-    chipBase: { paddingHorizontal: 15, paddingVertical: 8, borderRadius: 20, borderWidth: 1, marginRight: 10 },
-    chipOff: { backgroundColor: '#f8f9fa', borderColor: '#ddd' },
+    container: { flex: 1, backgroundColor: '#f8f9fc' },
+    contentPadding: { padding: 20 },
+    
+    // Top Bar (Estilo Dashboard)
+    topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#f8f9fc', paddingTop: 60, paddingHorizontal: 20, paddingBottom: 15 },
+    brandContainer: { flexDirection: 'row', alignItems: 'center' },
+    brandLogo: { width: 36, height: 36, borderRadius: 8, borderWidth: 1, borderColor: '#edf2f9', marginRight: 10 },
+    brandText: { fontSize: 20, fontWeight: '900', color: '#2c3e50', letterSpacing: -0.5 },
+    
+    // Botones Top Bar
+    btnLogin: { backgroundColor: '#fff', paddingHorizontal: 18, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: '#edf2f9', shadowColor: '#000', shadowOpacity: 0.05, elevation: 2 },
+    btnLoginText: { color: '#0d47a1', fontWeight: '800', fontSize: 12 },
+    btnLogout: { backgroundColor: '#e74c3c', paddingHorizontal: 18, paddingVertical: 8, borderRadius: 20, shadowColor: '#e74c3c', shadowOpacity: 0.3, elevation: 2 },
+    btnLogoutText: { color: 'white', fontWeight: 'bold', fontSize: 12 },
+
+    // Banner
+    bannerImage: { width: '100%', height: 180, borderRadius: 16, marginBottom: 25, resizeMode: 'cover' },
+
+    // Sección Módulo Pasajero
+    menuSeccion: { marginBottom: 25 },
+    sectionTitle: { fontSize: 11, fontWeight: '800', color: '#8395a7', textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 12 },
+    menuCard: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#edf2f9', borderRadius: 12, paddingVertical: 15, paddingHorizontal: 20, marginRight: 12, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.03, shadowRadius: 5, elevation: 1, minWidth: 95 },
+    menuIcon: { fontSize: 22, marginBottom: 8 },
+    menuText: { fontSize: 11, fontWeight: '800', color: '#2c3e50' },
+
+    // Tarjetas Estadísticas Web
+    statsScroll: { marginBottom: 25 },
+    statCard: { backgroundColor: '#fff', borderRadius: 16, borderWidth: 1, borderColor: '#edf2f9', padding: 20, width: 170, marginRight: 15, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 10, elevation: 2 },
+    statTitle: { color: '#8392a5', fontSize: 10, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 5 },
+    statValue: { color: '#2c3e50', fontSize: 26, fontWeight: '900' },
+    statEmoji: { fontSize: 32, opacity: 0.5 },
+
+    // Tarjeta de Monitoreo Central
+    monitoringCard: { backgroundColor: '#fff', borderRadius: 20, padding: 20, borderWidth: 1, borderColor: '#edf2f9', shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 15, elevation: 3 },
+    monitoringHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#edf2f9', paddingBottom: 15, marginBottom: 20, flexWrap: 'wrap', gap: 10 },
+    liveWrapper: { flexDirection: 'row', alignItems: 'center' },
+    liveDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#e74c3c', marginRight: 10, shadowColor: '#e74c3c', shadowOpacity: 0.8, shadowRadius: 5 },
+    monitoringTitle: { fontSize: 16, fontWeight: '900', color: '#2c3e50', letterSpacing: -0.5 },
+    
+    // Botón Radar
+    btnRadar: { backgroundColor: '#f8f9fc', borderWidth: 1, borderColor: '#edf2f9', paddingHorizontal: 15, paddingVertical: 8, borderRadius: 20 },
+    btnRadarText: { color: '#0d47a1', fontWeight: '800', fontSize: 11 },
+
+    // Filtros
+    filtrosScroll: { marginBottom: 15 },
+    filtroSubtitle: { fontSize: 10, fontWeight: '800', color: '#8395a7', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 },
+    chipBase: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: 1, marginRight: 8 },
+    chipOff: { backgroundColor: 'transparent', borderColor: '#0d47a1' },
+    chipTextOff: { color: '#0d47a1', fontSize: 11, fontWeight: '800' },
+    
+    // Colores Activos Filtros
     chipLlegadaOn: { backgroundColor: '#0d47a1', borderColor: '#0d47a1' },
-    chipSalidaOn: { backgroundColor: '#f39c12', borderColor: '#f39c12' },
-    chipEstadoOn: { backgroundColor: '#1565c0', borderColor: '#1565c0' },
-    chipRetrasoOn: { backgroundColor: '#f1c40f', borderColor: '#f1c40f' },
-    chipCancelaOn: { backgroundColor: '#e74c3c', borderColor: '#e74c3c' },
-    chipText: { fontSize: 12, fontWeight: 'bold' },
-    chipTextOff: { color: '#666' },
-    chipTextOn: { color: '#fff' },
-    chipTextDarkOn: { color: '#333' },
-    listContainer: { paddingHorizontal: 15, paddingBottom: 30 },
-    listHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 15 },
-    liveIndicator: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#e74c3c', marginRight: 10 },
-    listTitle: { fontSize: 18, fontWeight: 'bold', color: '#333' }
+    chipSalidaOn: { backgroundColor: '#e65100', borderColor: '#e65100' },
+    chipBlueOn: { backgroundColor: '#0d47a1', borderColor: '#0d47a1' },
+    chipWarningOn: { backgroundColor: '#f1c40f', borderColor: '#f1c40f' },
+    chipDangerOn: { backgroundColor: '#e74c3c', borderColor: '#e74c3c' },
+    chipTextOn: { color: '#fff', fontSize: 11, fontWeight: '800' },
+
+    // Lista vacía
+    emptyContainer: { alignItems: 'center', paddingVertical: 40 },
+    emptyText: { color: '#8395a7', fontSize: 12, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 1, textAlign: 'center' }
 });
 
 export default Inicio;

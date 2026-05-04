@@ -1,6 +1,7 @@
 import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
+import * as Linking from 'expo-linking'; // 🔥 Importamos Expo Linking
 
 import Inicio from './src/screens/Inicio';
 import Login from './src/screens/Login';
@@ -11,16 +12,34 @@ import MisBoletos from './src/screens/MisBoletos';
 import Reservas from './src/screens/Reservas';
 import Pagos from './src/screens/Pagos';
 import Equipaje from './src/screens/Equipaje';
-import DetalleFactura from './src/screens/DetalleFactura'
-import DetalleVuelo from './src/screens/DetalleVuelo'
-import MisFacturas from './src/screens/MisFacturas'
+import DetalleFactura from './src/screens/DetalleFactura';
+import DetalleVuelo from './src/screens/DetalleVuelo';
+import MisFacturas from './src/screens/MisFacturas';
 import PaseAbordar from './src/screens/PaseAbordar';
 import RecuperarPassword from './src/screens/RecuperarPassword';
+import SoporteTickets from './src/screens/SoporteTickets';
+
 const Stack = createStackNavigator();
 
+// 🔥 Configuramos los prefijos que la app va a escuchar
+const prefix = Linking.createURL('/');
+
 export default function App() {
+  
+  // 🔥 Configuramos el objeto 'linking'
+  const linking = {
+    prefixes: [prefix, 'aeropuertoaurora://'],
+    config: {
+      screens: {
+        // Mapeamos la ruta 'login' a la pantalla 'Login'
+        Login: 'login', 
+      }
+    }
+  };
+
   return (
-    <NavigationContainer>
+    // 🔥 Le pasamos el prop 'linking' al NavigationContainer
+    <NavigationContainer linking={linking}>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         <Stack.Screen name="Inicio" component={Inicio} />
         <Stack.Screen name="Login" component={Login} />
@@ -36,6 +55,7 @@ export default function App() {
         <Stack.Screen name="MisFacturas" component={MisFacturas} />
         <Stack.Screen name="PaseAbordar" component={PaseAbordar} />
         <Stack.Screen name="RecuperarPassword" component={RecuperarPassword} />
+        <Stack.Screen name="SoporteTickets" component={SoporteTickets} />
       </Stack.Navigator>
     </NavigationContainer>
   );

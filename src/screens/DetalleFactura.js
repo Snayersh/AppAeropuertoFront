@@ -27,7 +27,6 @@ const DetalleFactura = ({ route, navigation }) => {
 
     const cargarFactura = async () => {
         try {
-            // 🔥 Ajuste Vital 1 y 2: Usamos FormData y los nombres exactos del ApiMovil.ashx
             const formData = new FormData();
             formData.append('action', 'detalle_factura'); 
             formData.append('idFactura', id_factura);
@@ -54,40 +53,40 @@ const DetalleFactura = ({ route, navigation }) => {
     const generarPDF = async () => {
         setGenerandoPDF(true);
         try {
-            // 🔥 Ajuste Vital 3: Todo viene garantizado en minúsculas desde el servidor
             const filasTabla = detalles.map(item => `
                 <tr>
-                    <td>${item.descripcion}</td>
+                    <td style="color: #2c3e50; font-weight: bold;">${item.descripcion}</td>
                     <td class="text-center">${item.cantidad}</td>
-                    <td class="text-right font-bold">Q ${parseFloat(item.subtotal).toFixed(2)}</td>
+                    <td class="text-right text-secondary">Q ${parseFloat(item.subtotal).toFixed(2)}</td>
                 </tr>
             `).join('');
 
+            // 🔥 HTML DEL PDF ACTUALIZADO AL NUEVO DISEÑO 🔥
             const htmlContent = `
                 <!DOCTYPE html>
                 <html lang="es">
                 <head>
                     <meta charset="UTF-8">
                     <style>
-                        body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 30px; color: #333; }
-                        .header { border-bottom: 3px solid #0d47a1; padding-bottom: 10px; margin-bottom: 20px; }
-                        .title { color: #0d47a1; font-size: 26px; font-weight: 900; letter-spacing: 1px; }
-                        .subtitle { color: #777; font-size: 14px; margin-top: 5px; }
-                        .info-table { width: 100%; margin-bottom: 30px; border-collapse: collapse; }
+                        body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 40px; color: #2c3e50; }
+                        .header { border-bottom: 3px solid #2c3e50; padding-bottom: 20px; margin-bottom: 30px; }
+                        .title { color: #2c3e50; font-size: 26px; font-weight: 900; letter-spacing: -0.5px; }
+                        .subtitle { color: #6c757d; font-size: 12px; margin-top: 5px; text-transform: uppercase; letter-spacing: 1px; }
+                        .info-table { width: 100%; margin-bottom: 40px; border-collapse: collapse; }
                         .info-table td { padding: 5px; vertical-align: top; }
-                        .label { font-size: 11px; color: #777; font-weight: bold; text-transform: uppercase; }
-                        .value { font-size: 15px; font-weight: bold; color: #333; margin-bottom: 10px; }
-                        .main-table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
-                        .main-table th { background-color: #f8f9fa; padding: 12px; text-align: left; font-size: 12px; text-transform: uppercase; border-bottom: 2px solid #ddd; }
-                        .main-table td { padding: 12px; border-bottom: 1px solid #eee; font-size: 14px; }
+                        .label { font-size: 11px; color: #6c757d; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; }
+                        .value { font-size: 15px; font-weight: bold; color: #2c3e50; margin-bottom: 15px; }
+                        .main-table { width: 100%; border-collapse: collapse; margin-bottom: 40px; }
+                        .main-table th { background-color: #f8f9fc; padding: 15px; text-align: left; font-size: 12px; text-transform: uppercase; color: #6c757d; border-bottom: 2px solid #edf2f9; letter-spacing: 1px; }
+                        .main-table td { padding: 15px; border-bottom: 1px solid #f1f3f5; font-size: 14px; }
                         .text-right { text-align: right; }
                         .text-center { text-align: center; }
-                        .font-bold { font-weight: bold; }
-                        .total-row { background-color: #f8f9fa; }
-                        .total-label { font-size: 16px; font-weight: bold; color: #555; }
-                        .total-value { font-size: 20px; font-weight: bold; color: #0d47a1; }
-                        .badge { background-color: #28a745; color: white; padding: 5px 10px; border-radius: 5px; font-size: 12px; font-weight: bold; display: inline-block; }
-                        .footer { text-align: center; margin-top: 50px; font-size: 12px; color: #777; font-style: italic; border-top: 1px solid #eee; padding-top: 20px; }
+                        .text-secondary { color: #6c757d; }
+                        .total-row { background-color: #f8f9fc; }
+                        .total-label { font-size: 18px; font-weight: 800; color: #2c3e50; padding: 20px 15px; }
+                        .total-value { font-size: 22px; font-weight: 800; color: #0d47a1; padding: 20px 15px; }
+                        .badge { background-color: #e0f2f1; color: #00695c; padding: 8px 15px; border-radius: 20px; font-size: 12px; font-weight: 800; display: inline-block; letter-spacing: 1px; }
+                        .footer { text-align: center; margin-top: 50px; font-size: 12px; color: #6c757d; border-top: 2px solid #bdc3c7; padding-top: 20px; width: 60%; margin-left: auto; margin-right: auto; }
                     </style>
                 </head>
                 <body>
@@ -95,12 +94,13 @@ const DetalleFactura = ({ route, navigation }) => {
                         <table style="width: 100%;">
                             <tr>
                                 <td>
-                                    <div class="title">✈️ LA AURORA</div>
-                                    <div class="subtitle">Aeropuerto Internacional, Guatemala</div>
+                                    <div class="title">LA AURORA AIRLINES</div>
+                                    <div class="subtitle">GUA • Aeropuerto Internacional, Guatemala</div>
                                 </td>
                                 <td class="text-right">
-                                    <div class="title" style="color: #333;">${cabecera.numero_factura}</div>
-                                    <div class="badge">PAGADO</div>
+                                    <div class="label" style="margin-bottom: 5px;">NÚMERO DE DOCUMENTO</div>
+                                    <div class="title" style="font-size: 22px;">${cabecera.numero_factura}</div>
+                                    <div style="margin-top: 10px;"><span class="badge">PAGADO</span></div>
                                 </td>
                             </tr>
                         </table>
@@ -111,7 +111,7 @@ const DetalleFactura = ({ route, navigation }) => {
                             <td style="width: 50%;">
                                 <div class="label">Facturado a:</div>
                                 <div class="value">${cabecera.cliente}</div>
-                                <div class="label">Correo:</div>
+                                <div class="label">Correo Electrónico:</div>
                                 <div class="value">${cabecera.correo}</div>
                             </td>
                             <td style="width: 50%; text-align: right;">
@@ -126,7 +126,7 @@ const DetalleFactura = ({ route, navigation }) => {
                     <table class="main-table">
                         <thead>
                             <tr>
-                                <th>Descripción</th>
+                                <th>Descripción del Servicio</th>
                                 <th class="text-center">Cant.</th>
                                 <th class="text-right">Subtotal</th>
                             </tr>
@@ -134,15 +134,15 @@ const DetalleFactura = ({ route, navigation }) => {
                         <tbody>
                             ${filasTabla}
                             <tr class="total-row">
-                                <td colspan="2" class="text-right total-label">TOTAL PAGADO:</td>
+                                <td colspan="2" class="text-right total-label">TOTAL LIQUIDADO:</td>
                                 <td class="text-right total-value">Q ${parseFloat(cabecera.total).toFixed(2)}</td>
                             </tr>
                         </tbody>
                     </table>
 
                     <div class="footer">
-                        <p><strong>¡Gracias por volar con nosotros!</strong></p>
-                        <p>Este documento es un comprobante de pago electrónico válido. Consérvelo para cualquier aclaración.</p>
+                        <p style="color: #2c3e50; font-weight: bold; font-size: 14px; margin-bottom: 5px;">¡Gracias por volar con nosotros!</p>
+                        <p>Este documento es un comprobante de pago válido generado por el sistema central del Aeropuerto La Aurora GUA.</p>
                     </div>
                 </body>
                 </html>
@@ -172,8 +172,7 @@ const DetalleFactura = ({ route, navigation }) => {
         }
     };
 
-    // 4. Pantalla de carga mientras el guardia revisa
-    if (verificandoGuardia || cargando) return <ActivityIndicator size="large" color="#0d47a1" style={{ flex: 1, justifyContent: 'center' }} />;
+    if (verificandoGuardia || cargando) return <ActivityIndicator size="large" color="#2c3e50" style={{ flex: 1, justifyContent: 'center' }} />;
     if (!cabecera) return <Text style={{ textAlign: 'center', marginTop: 50 }}>Factura no encontrada.</Text>;
 
     return (
@@ -199,13 +198,16 @@ const DetalleFactura = ({ route, navigation }) => {
             <ScrollView contentContainerStyle={{ padding: 20 }}>
                 <View style={styles.invoiceBox}>
                     <View style={styles.header}>
-                        <View>
-                            <Text style={styles.title}>✈️ LA AURORA</Text>
-                            <Text style={styles.subTitle}>Aeropuerto Internacional</Text>
+                        <View style={{ flex: 1 }}>
+                            <Text style={styles.title}>LA AURORA AIRLINES</Text>
+                            <Text style={styles.subTitle}>GUA • Aeropuerto Internacional</Text>
                         </View>
                         <View style={{ alignItems: 'flex-end' }}>
+                            <Text style={styles.label}>DOCUMENTO</Text>
                             <Text style={styles.facNumber}>{cabecera.numero_factura}</Text>
-                            <Text style={styles.badge}>PAGADO</Text>
+                            <View style={styles.badgeContainer}>
+                                <Text style={styles.badge}>PAGADO</Text>
+                            </View>
                         </View>
                     </View>
 
@@ -226,14 +228,14 @@ const DetalleFactura = ({ route, navigation }) => {
 
                     <View style={styles.table}>
                         <View style={styles.tableHead}>
-                            <Text style={[styles.th, { flex: 2 }]}>Desc.</Text>
+                            <Text style={[styles.th, { flex: 2 }]}>Descripción</Text>
                             <Text style={[styles.th, { flex: 1, textAlign: 'center' }]}>Cant.</Text>
                             <Text style={[styles.th, { flex: 1, textAlign: 'right' }]}>Subtotal</Text>
                         </View>
 
                         {detalles.map((item, index) => (
                             <View key={index} style={styles.tableRow}>
-                                <Text style={[styles.td, { flex: 2 }]}>{item.descripcion}</Text>
+                                <Text style={[styles.td, { flex: 2, fontWeight: 'bold', color: '#2c3e50' }]}>{item.descripcion}</Text>
                                 <Text style={[styles.td, { flex: 1, textAlign: 'center' }]}>{item.cantidad}</Text>
                                 <Text style={[styles.td, { flex: 1, textAlign: 'right', fontWeight: 'bold' }]}>
                                     Q {parseFloat(item.subtotal).toFixed(2)}
@@ -242,12 +244,16 @@ const DetalleFactura = ({ route, navigation }) => {
                         ))}
 
                         <View style={styles.totalRow}>
-                            <Text style={styles.totalLabel}>TOTAL PAGADO:</Text>
+                            <Text style={styles.totalLabel}>TOTAL LIQUIDADO:</Text>
                             <Text style={styles.totalValue}>Q {parseFloat(cabecera.total).toFixed(2)}</Text>
                         </View>
                     </View>
 
-                    <Text style={styles.footerText}>¡Gracias por volar con nosotros!</Text>
+                    <View style={styles.footerContainer}>
+                        <View style={styles.footerLine} />
+                        <Text style={styles.footerTextBold}>¡Gracias por volar con nosotros!</Text>
+                        <Text style={styles.footerText}>Este documento es un comprobante de pago válido.</Text>
+                    </View>
                 </View>
             </ScrollView>
         </View>
@@ -255,33 +261,39 @@ const DetalleFactura = ({ route, navigation }) => {
 };
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#e9ecef' },
-    topBar: { backgroundColor: '#333', padding: 20, paddingTop: 50, flexDirection: 'row', justifyContent: 'space-between' },
+    container: { flex: 1, backgroundColor: '#f8f9fc' }, // Fondo web
+    topBar: { backgroundColor: '#2c3e50', padding: 20, paddingTop: 50, flexDirection: 'row', justifyContent: 'space-between' }, // Tono carbón
     btnVolver: { borderColor: 'white', borderWidth: 1, paddingHorizontal: 15, paddingVertical: 8, borderRadius: 20 },
-    btnPrint: { backgroundColor: '#0d47a1', paddingHorizontal: 15, paddingVertical: 8, borderRadius: 20, minWidth: 120, alignItems: 'center' },
+    btnPrint: { backgroundColor: '#1a252f', paddingHorizontal: 15, paddingVertical: 8, borderRadius: 20, minWidth: 120, alignItems: 'center' }, // Botón ligeramente más oscuro que la barra
     btnVolverText: { color: 'white', fontWeight: 'bold', fontSize: 14 },
 
-    invoiceBox: { backgroundColor: 'white', borderRadius: 10, padding: 25, shadowColor: '#000', shadowOpacity: 0.1, elevation: 3 },
-    header: { flexDirection: 'row', justifyContent: 'space-between', borderBottomWidth: 2, borderBottomColor: '#0d47a1', paddingBottom: 15, marginBottom: 15 },
-    title: { fontSize: 20, fontWeight: '900', color: '#0d47a1' },
-    subTitle: { fontSize: 12, color: '#777' },
-    facNumber: { fontSize: 18, fontWeight: 'bold', color: '#333' },
-    badge: { backgroundColor: '#28a745', color: 'white', fontWeight: 'bold', fontSize: 10, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 5, marginTop: 5, overflow: 'hidden' },
+    invoiceBox: { backgroundColor: 'white', borderRadius: 15, padding: 25, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 15, elevation: 3, borderWidth: 1, borderColor: '#edf2f9' },
+    header: { flexDirection: 'row', justifyContent: 'space-between', borderBottomWidth: 3, borderBottomColor: '#2c3e50', paddingBottom: 15, marginBottom: 20 },
+    title: { fontSize: 20, fontWeight: '900', color: '#2c3e50', letterSpacing: -0.5 },
+    subTitle: { fontSize: 10, color: '#6c757d', textTransform: 'uppercase', letterSpacing: 1, marginTop: 2 },
+    facNumber: { fontSize: 18, fontWeight: 'bold', color: '#2c3e50' },
+    
+    badgeContainer: { marginTop: 5 },
+    badge: { backgroundColor: '#e0f2f1', color: '#00695c', fontWeight: '800', fontSize: 10, paddingHorizontal: 12, paddingVertical: 5, borderRadius: 15, overflow: 'hidden', letterSpacing: 1 },
 
-    infoRow: { flexDirection: 'row', marginBottom: 20 },
-    label: { fontSize: 10, fontWeight: 'bold', color: '#777', textTransform: 'uppercase', marginTop: 5 },
-    value: { fontSize: 14, fontWeight: 'bold', color: '#333' },
+    infoRow: { flexDirection: 'row', marginBottom: 25 },
+    label: { fontSize: 10, fontWeight: '800', color: '#6c757d', textTransform: 'uppercase', marginTop: 5, letterSpacing: 1 },
+    value: { fontSize: 14, fontWeight: 'bold', color: '#2c3e50' },
 
-    table: { borderWidth: 1, borderColor: '#dee2e6', borderRadius: 5, overflow: 'hidden' },
-    tableHead: { flexDirection: 'row', backgroundColor: '#f8f9fa', padding: 10, borderBottomWidth: 1, borderBottomColor: '#dee2e6' },
-    th: { fontSize: 12, fontWeight: 'bold', color: '#555', textTransform: 'uppercase' },
-    tableRow: { flexDirection: 'row', padding: 10, borderBottomWidth: 1, borderBottomColor: '#eee' },
-    td: { fontSize: 12, color: '#333' },
-    totalRow: { flexDirection: 'row', justifyContent: 'space-between', backgroundColor: '#f8f9fa', padding: 15 },
-    totalLabel: { fontSize: 14, fontWeight: 'bold', color: '#555' },
-    totalValue: { fontSize: 18, fontWeight: 'bold', color: '#0d47a1' },
+    table: { borderRadius: 10, overflow: 'hidden', backgroundColor: 'white' },
+    tableHead: { flexDirection: 'row', backgroundColor: '#f8f9fc', padding: 15 },
+    th: { fontSize: 11, fontWeight: '800', color: '#6c757d', textTransform: 'uppercase', letterSpacing: 1 },
+    tableRow: { flexDirection: 'row', padding: 15, borderBottomWidth: 1, borderBottomColor: '#f1f3f5' },
+    td: { fontSize: 13, color: '#6c757d' },
+    
+    totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#f8f9fc', padding: 20 },
+    totalLabel: { fontSize: 15, fontWeight: '800', color: '#2c3e50' },
+    totalValue: { fontSize: 20, fontWeight: '900', color: '#0d47a1' },
 
-    footerText: { textAlign: 'center', marginTop: 30, fontSize: 12, color: '#777', fontStyle: 'italic' }
+    footerContainer: { alignItems: 'center', marginTop: 40 },
+    footerLine: { height: 2, width: 40, backgroundColor: '#bdc3c7', marginBottom: 15 },
+    footerTextBold: { fontSize: 14, fontWeight: 'bold', color: '#2c3e50', marginBottom: 4 },
+    footerText: { textAlign: 'center', fontSize: 11, color: '#6c757d' }
 });
 
 export default DetalleFactura;
