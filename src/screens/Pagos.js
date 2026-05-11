@@ -38,7 +38,7 @@ const Pagos = ({ route, navigation }) => {
         setCvv(clean.substring(0, 4));
     };
 
-    const procesarPago = async () => {
+   const procesarPago = async () => {
         if (!codigoReserva || !tarjeta || !vencimiento || !cvv || !nombreTitular) {
             Alert.alert("Atención", "Por favor completa todos los datos de la tarjeta y el localizador.");
             return;
@@ -48,10 +48,13 @@ const Pagos = ({ route, navigation }) => {
         try {
             const formData = new FormData();
             formData.append('action', 'procesar_pago');
-            formData.append('codigoReserva', codigoReserva);
-            formData.append('email', correoAuth);
-            formData.append('idMetodoPago', 1); // 1 = Simulando Tarjeta de Crédito/Débito
-            formData.append('token', tokenAuth);
+            
+            // 🔥 AQUÍ ESTÁ LA MAGIA: Le mandamos los nombres EXACTOS que espera tu VB.NET
+            formData.append('codigoReserva', String(codigoReserva).trim()); 
+            formData.append('correo', String(correoAuth)); // VB.NET espera 'correo'
+            formData.append('email', String(correoAuth));  // Por si el guardia valida sesión con 'email'
+            formData.append('idMetodoPago', '1');          // VB.NET espera 'idMetodoPago'
+            formData.append('token', String(tokenAuth));
 
             const response = await axios.post(API_URL, formData, {
                 headers: { 'Content-Type': 'multipart/form-data' }

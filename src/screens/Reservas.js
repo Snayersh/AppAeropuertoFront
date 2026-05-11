@@ -29,6 +29,7 @@ const Reservas = ({ navigation }) => {
     const [mapaVisible, setMapaVisible] = useState(false);
 
     const proxyRef = useRef(null);
+    const connectionRef = useRef(null);
     const vueloElegidoRef = useRef('');
 
     useEffect(() => {
@@ -37,11 +38,12 @@ const Reservas = ({ navigation }) => {
 
     useEffect(() => {
         const connection = signalr.hubConnection(SIGNALR_URL);
+        connectionRef.current = connection;
         const proxy = connection.createHubProxy('asientosHub');
         proxyRef.current = proxy;
 
         proxy.on('alguienBloqueoAsiento', (vueloNotificado, asiento) => {
-            if (vueloElegidoRef.current.toString() === vueloNotificado.toString()) {
+            if (String(vueloElegidoRef.current) === String(vueloNotificado)) {
                 setAsientosBloqueados(prev => {
                     if (!prev.includes(asiento)) return [...prev, asiento];
                     return prev;
@@ -50,14 +52,17 @@ const Reservas = ({ navigation }) => {
         });
 
         proxy.on('alguienLiberoAsiento', (vueloNotificado, asiento) => {
-            if (vueloElegidoRef.current.toString() === vueloNotificado.toString()) {
+            if (String(vueloElegidoRef.current) === String(vueloNotificado)) {
                 setAsientosBloqueados(prev => prev.filter(a => a !== asiento));
             }
         });
 
         connection.start().done(() => {
-            console.log('📡 SignalR Conectado');
-        }).fail((error) => console.log('📡 Error de SignalR:', error));
+            console.log('📡 SignalR Conectado Exitosamente');
+        }).fail((error) => {
+            // 🔥 SILENCIADOR DE SIGNALR: Ya no spamea alertas, falla en silencio
+            console.log('📡 SignalR Radar en vivo desactivado.'); 
+        });
 
         return () => connection.stop();
     }, []);
@@ -72,13 +77,13 @@ const Reservas = ({ navigation }) => {
         try {
             const formVuelos = new FormData();
             formVuelos.append('action', 'vuelos_disponibles');
-            formVuelos.append('email', email);
-            formVuelos.append('token', token);
+            formVuelos.append('email', String(email));
+            formVuelos.append('token', String(token));
 
             const formClases = new FormData();
             formClases.append('action', 'clases_disponibles');
-            formClases.append('email', email);
-            formClases.append('token', token);
+            formClases.append('email', String(email));
+            formClases.append('token', String(token));
 
             const [resVuelos, resClases] = await Promise.all([
                 axios.post(API_URL, formVuelos, { headers: { 'Content-Type': 'multipart/form-data' } }),
@@ -86,11 +91,37 @@ const Reservas = ({ navigation }) => {
             ]);
 
             if (resVuelos.data.success) {
-                setVuelos(resVuelos.data.vuelos);
+                const listaLimpia = resVuelos.data.vuelos.map(v => {
+                    const valores = Object.values(v);
+                    let idVal = v.ID_VUELO || v.id_vuelo || v.IdVuelo || valores[0];
+                    let detVal = v.DETALLE || v.detalle || v.Detalle || valores[1];
+
+                    if (isNaN(parseInt(idVal, 10)) && !isNaN(parseInt(valores[1], 10))) {
+                        idVal = valores[1];
+                        detVal = valores[0];
+                    }
+
+                    return {
+                        id_vuelo: String(idVal),
+                        detalle: String(detVal || 'Vuelo sin detalle')
+                    };
+                });
+                setVuelos(listaLimpia); 
             } else {
                 Alert.alert("⚠️ Error", resVuelos.data.mensaje || "El servidor rechazó la petición de vuelos.");
             }
-            if (resClases.data.success) setClases(resClases.data.clases);
+
+            if (resClases.data.success) {
+                // 🔥 SOLUCIÓN DEL CRASHEO (.toString of undefined)
+                const clasesLimpias = resClases.data.clases.map(c => {
+                    const val = Object.values(c);
+                    return {
+                        id_tipo_boleto: String(c.ID_TIPO_BOLETO || c.id_tipo_boleto || val[0]),
+                        nombre: String(c.NOMBRE || c.nombre || val[1])
+                    };
+                });
+                setClases(clasesLimpias);
+            }
         } catch (error) {
             Alert.alert("🔌 Error de Conexión", "Verifica tu conexión.");
         } finally { setCargando(false); }
@@ -104,29 +135,31 @@ const Reservas = ({ navigation }) => {
                     try {
                         const formData = new FormData();
                         formData.append('action', 'mapa_asientos');
-                        formData.append('idVuelo', vueloElegido);
-                        formData.append('email', correoAuth);
-                        formData.append('token', tokenAuth);
+                        formData.append('idVuelo', String(vueloElegido));
+                        formData.append('email', String(correoAuth));
+                        formData.append('token', String(tokenAuth));
 
                         const res = await axios.post(API_URL, formData, {
                             headers: { 'Content-Type': 'multipart/form-data' }
                         });
 
                         if (res.data.success) {
-                            const ocupadosDB = res.data.ocupados;
+                            const ocupadosDB = res.data.ocupados || [];
                             setOcupados(ocupadosDB);
 
                             setAsientosSeleccionados(prevSeleccionados => {
                                 const asientosPerdidos = prevSeleccionados.filter(a => ocupadosDB.includes(a.asiento));
                                 if (asientosPerdidos.length > 0) {
                                     const nombresPerdidos = asientosPerdidos.map(a => a.asiento).join(', ');
-                                    Alert.alert("¡Asiento Ocupado!", `Alguien acaba de pagar el asiento ${nombresPerdidos}.`);
+                                    setTimeout(() => {
+                                        Alert.alert("¡Asiento Ocupado!", `Alguien acaba de pagar el asiento ${nombresPerdidos}.`);
+                                    }, 200);
                                     return prevSeleccionados.filter(a => !ocupadosDB.includes(a.asiento));
                                 }
                                 return prevSeleccionados;
                             });
                         }
-                    } catch (error) { console.log("Radar silencioso falló", error); }
+                    } catch (error) {}
                 };
                 interval = setInterval(sincronizarAsientos, 30000);
             }
@@ -144,17 +177,17 @@ const Reservas = ({ navigation }) => {
         try {
             const formData = new FormData();
             formData.append('action', 'mapa_asientos');
-            formData.append('idVuelo', idVuelo);
-            formData.append('email', correoAuth);
-            formData.append('token', tokenAuth);
+            formData.append('idVuelo', String(idVuelo));
+            formData.append('email', String(correoAuth));
+            formData.append('token', String(tokenAuth));
 
             const resMapa = await axios.post(API_URL, formData, {
                 headers: { 'Content-Type': 'multipart/form-data' }
             });
 
             if (resMapa.data.success) {
-                setCapacidad(resMapa.data.capacidad);
-                setOcupados(resMapa.data.ocupados);
+                setCapacidad(resMapa.data.capacidad || 0);
+                setOcupados(resMapa.data.ocupados || []);
                 setMapaVisible(true);
             } else {
                 Alert.alert("Error", resMapa.data.mensaje || "No se pudo cargar el mapa.");
@@ -171,10 +204,18 @@ const Reservas = ({ navigation }) => {
         
         if (yaSeleccionado) {
             setAsientosSeleccionados(prev => prev.filter(a => a.asiento !== asiento));
-            if (proxyRef.current) proxyRef.current.invoke('liberarAsientoTemporal', vueloElegido, asiento);
+            try {
+                if (proxyRef.current && connectionRef.current && connectionRef.current.state === 1) {
+                    proxyRef.current.invoke('liberarAsientoTemporal', String(vueloElegido), asiento);
+                }
+            } catch(e) {}
         } else {
             setAsientosSeleccionados(prev => [...prev, { asiento, id_clase: idClase, precio }]);
-            if (proxyRef.current) proxyRef.current.invoke('bloquearAsientoTemporal', vueloElegido, asiento);
+            try {
+                if (proxyRef.current && connectionRef.current && connectionRef.current.state === 1) {
+                    proxyRef.current.invoke('bloquearAsientoTemporal', String(vueloElegido), asiento);
+                }
+            } catch(e) {}
         }
     };
 
@@ -182,23 +223,32 @@ const Reservas = ({ navigation }) => {
         if (!vueloElegido) { Alert.alert("Atención", "Selecciona un vuelo."); return; }
         if (asientosSeleccionados.length === 0) { Alert.alert("Atención", "Selecciona al menos un asiento."); return; }
 
+        if (isNaN(parseInt(vueloElegido, 10))) {
+            Alert.alert("🚨 Error Interno", `El ID del vuelo (${vueloElegido}) no es válido. Reportar a sistemas.`);
+            return;
+        }
+
         setGuardando(true);
         try {
-            const asientosFormateados = asientosSeleccionados.map(item => ({ asiento: item.asiento, id_clase: item.id_clase }));
+            // Empacamos en formato puro para VB.NET ("1A:3", "1B:3")
+            const asientosFormateados = asientosSeleccionados.map(item => `${item.asiento}:${item.id_clase}`);
 
             const formData = new FormData();
             formData.append('action', 'procesar_reserva');
-            formData.append('email', correoAuth);
-            formData.append('token', tokenAuth);
-            formData.append('idVuelo', vueloElegido);
-            formData.append('asientos', JSON.stringify(asientosFormateados));
+            formData.append('email', String(correoAuth));
+            formData.append('token', String(tokenAuth));
+            formData.append('idVuelo', String(vueloElegido)); 
+            
+            // 🔥 SOLUCIÓN FORMAT EXCEPTION: Enviamos como texto separado por comas (SIN JSON)
+            // Esto viajará como "1A:3,1B:3", lo cual VB.NET digiere perfectamente.
+            formData.append('asientos', asientosFormateados.join(','));
 
             const response = await axios.post(API_URL, formData, {
                 headers: { 'Content-Type': 'multipart/form-data' }
             });
 
             if (response.data.success) {
-                const codigo = response.data.codigo_reserva;
+                const codigo = response.data.codigo || response.data.codigo_reserva;
                 Alert.alert(
                     "¡Reserva Confirmada! 🎉", `Tu localizador es: ${codigo}\n¿Deseas pagar ahora?`,
                     [
@@ -284,7 +334,6 @@ const Reservas = ({ navigation }) => {
 
     return (
         <View style={styles.container}>
-            {/* Top Bar Carbón */}
             <View style={styles.topBar}>
                 <View style={styles.topBarLeft}>
                     <Image source={require('../../assets/icon.png')} style={styles.brandIconMini} />
@@ -299,21 +348,21 @@ const Reservas = ({ navigation }) => {
                 
                 <View style={styles.bookingCard}>
                     
-                    {/* Encabezado */}
                     <View style={styles.headerContainer}>
                         <View style={styles.headerAccent} />
                         <Text style={styles.mainTitle}>Encuentre su Destino</Text>
                         <Text style={styles.subTitle}>Gestión de itinerarios en tiempo real</Text>
                     </View>
 
-                    {/* Paso 1: Filtros */}
                     <Text style={styles.sectionSubtitle}>1. PARÁMETROS DEL VIAJE</Text>
                     
                     <Text style={styles.labelCustom}>Vuelos Disponibles</Text>
                     <View style={styles.pickerContainer}>
                         <Picker selectedValue={vueloElegido} onValueChange={handleVueloChange} dropdownIconColor="#0d47a1">
                             <Picker.Item label="-- Seleccione su vuelo --" value="" color="#888" />
-                            {vuelos.map((v) => <Picker.Item key={v.id_vuelo} label={v.detalle} value={v.id_vuelo} />)}
+                            {vuelos.map((v) => (
+                                <Picker.Item key={v.id_vuelo} label={v.detalle} value={v.id_vuelo} />
+                            ))}
                         </Picker>
                     </View>
 
@@ -323,14 +372,15 @@ const Reservas = ({ navigation }) => {
                             <View style={styles.pickerContainer}>
                                 <Picker selectedValue={claseElegida} onValueChange={setClaseElegida} dropdownIconColor="#0d47a1">
                                     <Picker.Item label="-- Mostrar Todo --" value="" color="#888" />
-                                    {clases.map((c) => <Picker.Item key={c.id_tipo_boleto} label={c.nombre} value={c.id_tipo_boleto.toString()} />)}
+                                    {clases.map((c) => (
+                                        // 🔥 SE ELIMINÓ EL .toString() PROBLEMÁTICO
+                                        <Picker.Item key={c.id_tipo_boleto} label={c.nombre} value={c.id_tipo_boleto} />
+                                    ))}
                                 </Picker>
                             </View>
 
-                            {/* Paso 2: Mapa de Asientos */}
                             <Text style={[styles.sectionSubtitle, { marginTop: 40, textAlign: 'center' }]}>2. SELECCIÓN DE UBICACIÓN</Text>
                             
-                            {/* Leyenda */}
                             <View style={styles.leyendaContainer}>
                                 <View style={styles.leyendaItem}><View style={[styles.leyendaCaja, { backgroundColor: '#fffdf0', borderColor: '#ffd700' }]} /><Text style={styles.leyendaTexto}> Primera</Text></View>
                                 <View style={styles.leyendaItem}><View style={[styles.leyendaCaja, { backgroundColor: '#fdf0ff', borderColor: '#ab47bc' }]} /><Text style={styles.leyendaTexto}> Ejecutiva</Text></View>
@@ -339,14 +389,12 @@ const Reservas = ({ navigation }) => {
                                 <View style={styles.leyendaItem}><View style={[styles.leyendaCaja, { backgroundColor: '#e65100', borderColor: '#bf360c' }]} /><Text style={styles.leyendaTexto}> Bloqueado</Text></View>
                             </View>
 
-                            {/* Fuselaje */}
                             {cargando ? (
                                 <ActivityIndicator size="large" color="#0d47a1" style={{ marginVertical: 30 }} />
                             ) : (
                                 renderAvion()
                             )}
 
-                            {/* Resumen de Precio */}
                             {asientosSeleccionados.length > 0 && (
                                 <View style={styles.priceBox}>
                                     <Text style={styles.labelCustom}>INVERSIÓN ESTIMADA</Text>
@@ -355,7 +403,6 @@ const Reservas = ({ navigation }) => {
                                 </View>
                             )}
 
-                            {/* Botón de Confirmación */}
                             <TouchableOpacity 
                                 style={[styles.btnAuroraBook, asientosSeleccionados.length === 0 && styles.btnAuroraBookDisabled]} 
                                 onPress={confirmarReserva} disabled={asientosSeleccionados.length === 0 || guardando}
@@ -372,50 +419,32 @@ const Reservas = ({ navigation }) => {
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#f8f9fc' },
-    
-    // Top Bar Carbón
     topBar: { backgroundColor: '#2c3e50', padding: 20, paddingTop: 50, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.1, elevation: 5 },
     topBarLeft: { flexDirection: 'row', alignItems: 'center' },
     brandIconMini: { width: 30, height: 30, borderRadius: 6, marginRight: 10, backgroundColor: 'white' },
     topBarTitle: { color: 'white', fontSize: 15, fontWeight: 'bold' },
     btnVolver: { borderColor: '#bdc3c7', borderWidth: 1, paddingHorizontal: 15, paddingVertical: 6, borderRadius: 20 },
     btnVolverText: { color: 'white', fontWeight: 'bold', fontSize: 12 },
-    
-    // Tarjeta Principal
     bookingCard: { backgroundColor: 'white', borderRadius: 15, padding: 25, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 15, elevation: 3, borderWidth: 1, borderColor: '#edf2f9', marginBottom: 20 },
-    
-    // Encabezados
     headerContainer: { alignItems: 'center', marginBottom: 35 },
     headerAccent: { width: 60, height: 5, backgroundColor: '#0d47a1', borderRadius: 10, marginBottom: 15 },
     mainTitle: { fontSize: 22, fontWeight: 'bold', color: '#2c3e50', letterSpacing: -0.5 },
     subTitle: { color: '#6c757d', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, marginTop: 5, fontWeight: 'bold' },
-    
     sectionSubtitle: { fontSize: 13, fontWeight: '800', color: '#0d47a1', textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 15 },
     labelCustom: { fontSize: 11, fontWeight: '800', color: '#6c757d', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 },
-    
     pickerContainer: { height: 48, backgroundColor: '#fff', borderRadius: 10, borderWidth: 1, borderColor: '#dee2e6', justifyContent: 'center' },
-    
-    // Leyenda
     leyendaContainer: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', marginBottom: 25, gap: 12 },
     leyendaItem: { flexDirection: 'row', alignItems: 'center' },
     leyendaCaja: { width: 12, height: 12, borderRadius: 3, borderWidth: 1 },
     leyendaTexto: { fontSize: 10, fontWeight: '800', color: '#6c757d', textTransform: 'uppercase' },
-    
-    // Fuselaje del Avión
     planeFuselage: { backgroundColor: '#ffffff', borderRadius: 50, borderBottomLeftRadius: 15, borderBottomRightRadius: 15, paddingVertical: 40, paddingHorizontal: 20, borderWidth: 1, borderColor: '#dee2e6', alignSelf: 'center', minWidth: 260, shadowColor: '#000', shadowOpacity: 0.02, elevation: 1 },
     seatRow: { flexDirection: 'row', justifyContent: 'center', marginBottom: 10 },
     aisle: { width: 25 },
-    
-    // Asientos Base
     seat: { width: 38, height: 38, borderRadius: 8, marginHorizontal: 4, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#e0e0e0', backgroundColor: 'white' },
     seatText: { fontSize: 10, fontWeight: '800', color: '#2c3e50' },
-    
-    // Clases
     seatPrimera: { borderBottomWidth: 3, borderBottomColor: '#ffd700', backgroundColor: '#fffdf0' },
     seatEjecutiva: { borderBottomWidth: 3, borderBottomColor: '#ab47bc', backgroundColor: '#fdf0ff' },
     seatEconomica: { borderBottomWidth: 3, borderBottomColor: '#0d47a1', backgroundColor: '#f0f7ff' },
-    
-    // Estados Asientos
     seatOccupied: { backgroundColor: '#f1f3f5', borderColor: '#dee2e6', borderStyle: 'dashed' },
     seatTextOccupied: { color: '#adb5bd', textDecorationLine: 'line-through' },
     seatSelected: { backgroundColor: '#0d47a1', borderColor: '#0d47a1', transform: [{ scale: 1.1 }] },
@@ -424,13 +453,9 @@ const styles = StyleSheet.create({
     seatTextLocked: { color: 'white', fontSize: 12 },
     seatDimmed: { opacity: 0.2 },
     seatTextDimmed: { color: '#2c3e50' },
-    
-    // Caja de Precio
     priceBox: { backgroundColor: '#f8f9fc', borderColor: '#edf2f9', borderWidth: 1, borderRadius: 12, padding: 20, marginTop: 30, alignItems: 'center' },
     priceNumber: { fontSize: 26, color: '#2c3e50', fontWeight: '900', marginVertical: 5 },
     priceDetail: { fontSize: 12, color: '#6c757d', fontWeight: 'bold' },
-    
-    // Botón Reservar (Píldora)
     btnAuroraBook: { backgroundColor: '#0d47a1', height: 50, borderRadius: 25, alignItems: 'center', justifyContent: 'center', marginTop: 25, shadowColor: '#0d47a1', shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
     btnAuroraBookDisabled: { backgroundColor: '#bdc3c7', shadowOpacity: 0 },
     btnAuroraBookText: { color: 'white', fontWeight: '900', fontSize: 13, textTransform: 'uppercase', letterSpacing: 1 }

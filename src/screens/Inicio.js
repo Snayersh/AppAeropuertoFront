@@ -4,13 +4,15 @@ import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import VueloCard from '../components/VueloCard';
-import { API_URL } from '../config';
+import { API_URL, API_URL_CLIMA } from '../config';
 
 const Inicio = ({ navigation }) => {
+    // 🔥 ESTADOS
     const [estadisticas, setEstadisticas] = useState({ activos: 0, llegadas: 0, salidas: 0 });
     const [vuelos, setVuelos] = useState([]);
     const [cargando, setCargando] = useState(true);
     const [usuario, setUsuario] = useState(null);
+    const [clima, setClima] = useState({ temp: '--', condicion: 'Cargando...', icono: '02d' }); // 🌤️ Clima
 
     // 🔥 FILTROS
     const [filtrosTipo, setFiltrosTipo] = useState({ llegada: true, salida: true });
@@ -26,6 +28,7 @@ const Inicio = ({ navigation }) => {
         useCallback(() => {
             verificarSesion();
             cargarDatos();
+            cargarClima();
         }, [])
     );
 
@@ -73,27 +76,50 @@ const Inicio = ({ navigation }) => {
             if (response.data.success) {
                 setEstadisticas(response.data.estadisticas);
 
-                const vuelosFormateados = response.data.radar_vuelos.map(v => {
-                    let fechaRaw = v.fecha_salida || '';
-                    let horaMostrar = '--:--';
-                    
-                    if (fechaRaw) {
-                        const d = new Date(fechaRaw);
-                        if (!isNaN(d)) {
-                            horaMostrar = d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-                        }
-                    }
+             // 🔥 MAPEO CORREGIDO PARA INICIO
+// 🔥 MAPEO CORREGIDO CON ÍNDICES (Igual que en la Web)
+const vuelosFormateados = response.data.radar_vuelos.map(v => {
+    // Agarramos los valores por su posición (0=ID, 1=Vuelo, 2=Aerolinea, etc.)
+    const valores = Object.values(v);
 
-                    return {
-                        id: v.id_vuelo || 0, 
-                        numero_vuelo: v.codigo_vuelo || 'N/A',
-                        aerolinea: v.aerolinea || 'La Aurora',
-                        tipo: (String(v.es_llegada) === '1') ? 'Llegada' : 'Salida', 
-                        ruta: (v.origen_iata && v.destino_iata) ? `${v.origen_iata} ➔ ${v.destino_iata}` : 'Ruta',
-                        hora: horaMostrar, 
-                        estado: String(v.estado_vuelo || '').toUpperCase().trim() 
-                    };
-                });
+    const idVuelo = valores[0] || 0;
+    const numVuelo = valores[1] || 'N/A';
+    const aerolinea = valores[2] || 'La Aurora';
+    const tipoLlegada = valores[3]; // Puede ser 1/0, true/false, o "Llegada"/"Salida"
+    const ruta = valores[4] || 'Ruta Desconocida';
+    const fechaRaw = valores[5] || '';
+    const estado = valores[6] || '';
+
+    // Formatear la hora
+    let horaMostrar = '--:--';
+    if (fechaRaw) {
+        let d = new Date(fechaRaw);
+        // Validar si viene en formato /Date(123456789)/ de C#
+        if (fechaRaw.toString().includes('/Date(')) {
+            d = new Date(parseInt(fechaRaw.replace(/[^0-9]/g, '')));
+        }
+        if (!isNaN(d)) {
+            horaMostrar = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        } else {
+            horaMostrar = fechaRaw; // Si la API ya te manda "18:30" directo
+        }
+    }
+
+    // Identificar si es Llegada o Salida
+    const esLlegada = String(tipoLlegada).toLowerCase() === 'true' || 
+                      String(tipoLlegada) === '1' || 
+                      String(tipoLlegada).toLowerCase() === 'llegada';
+
+    return {
+        id: idVuelo,
+        numero_vuelo: numVuelo,
+        aerolinea: aerolinea,
+        tipo: esLlegada ? 'Llegada' : 'Salida',
+        ruta: ruta,
+        hora: horaMostrar,
+        estado: String(estado).toUpperCase().trim()
+    };
+});
                 setVuelos(vuelosFormateados);
             }
         } catch (error) {
@@ -102,7 +128,31 @@ const Inicio = ({ navigation }) => {
             setCargando(false);
         }
     };
-
+const obtenerClima = async () => {
+    try {
+      
+        const response = await axios.get(API_URL_CLIMA);
+        const data = response.data;
+        
+        console.log("Datos del clima:", data);
+    } catch (error) {
+        console.error("Error en la API de clima:", error);
+    }
+};
+const cargarClima = async () => {
+    try {
+        const response = await axios.get(API_URL_CLIMA);
+        const { main, weather } = response.data;
+        setClima({
+            temp: Math.round(main.temp),
+            condicion: weather[0].description,
+            icono: weather[0].icon
+        });
+    } catch (error) {
+        console.log("Error clima:", error);
+        setClima({ temp: '--', condicion: 'Sin conexión', icono: '50d' });
+    }
+};
     const vuelosFiltrados = vuelos.filter(v => {
         const isLlegada = v.tipo === 'Llegada';
         const isSalida = v.tipo === 'Salida';
@@ -183,7 +233,6 @@ const Inicio = ({ navigation }) => {
                                     <Text style={styles.menuIcon}>🧾</Text>
                                     <Text style={styles.menuText}>Facturas</Text>
                                 </TouchableOpacity>
-                                {/* NUEVO BOTÓN DE SOPORTE */}
                                 <TouchableOpacity style={styles.menuCard} onPress={() => navigation.navigate('SoporteTickets')}>
                                     <Text style={styles.menuIcon}>🎧</Text>
                                     <Text style={styles.menuText}>Soporte</Text>
@@ -215,12 +264,28 @@ const Inicio = ({ navigation }) => {
                             </View>
                             <Text style={styles.statEmoji}>🛫</Text>
                         </View>
+                        
+                        {/* 🔥 AQUÍ VA LA NUEVA TARJETA DEL CLIMA 🔥 */}
+                        <View style={styles.statCard}>
+                            <View style={{ flex: 1, paddingRight: 5 }}>
+                                <Text style={styles.statTitle}>CLIMA GUA</Text>
+                                <Text style={styles.statValue}>{clima.temp}°C</Text>
+                                <Text style={{ color: '#8392a5', fontSize: 10, fontWeight: 'bold', textTransform: 'capitalize' }} numberOfLines={1}>
+                                    {clima.condicion}
+                                </Text>
+                            </View>
+                            <Image 
+                                source={{ uri: `https://openweathermap.org/img/wn/${clima.icono}@2x.png` }} 
+                                style={{ width: 55, height: 55 }} 
+                            />
+                        </View>
+
                     </ScrollView>
 
-                    {/* Tarjeta de Monitoreo (Blanca, redondeada, igual a la web) */}
+                    {/* Tarjeta de Monitoreo */}
                     <View style={styles.monitoringCard}>
                         
-                        {/* Cabecera del Radar y Botón Giga */}
+                        {/* Cabecera del Radar */}
                         <View style={styles.monitoringHeader}>
                             <View style={styles.liveWrapper}>
                                 <View style={styles.liveDot} />
