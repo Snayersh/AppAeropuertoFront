@@ -31,13 +31,67 @@ const Reservas = ({ navigation }) => {
     const proxyRef = useRef(null);
     const connectionRef = useRef(null);
     const vueloElegidoRef = useRef('');
+    
+    // 🔥 NUEVO: Refs para el temporizador y para saber qué teníamos seleccionado si nos salimos de la app
+    const asientosSeleccionadosRef = useRef([]);
+    const temporizadorRef = useRef(null);
+    const TIEMPO_LIMITE = 30000; // 30 segundos
 
     useEffect(() => {
         vueloElegidoRef.current = vueloElegido;
     }, [vueloElegido]);
 
+    // 🔥 NUEVO: Efecto que controla el reloj de arena cada vez que cambias tus asientos
     useEffect(() => {
+        asientosSeleccionadosRef.current = asientosSeleccionados;
+
+        // Limpiamos el reloj anterior si existe
+        if (temporizadorRef.current) clearTimeout(temporizadorRef.current);
+
+        // Si hay al menos un asiento, empezamos a contar 30 segundos
+        if (asientosSeleccionados.length > 0) {
+            temporizadorRef.current = setTimeout(() => {
+                // 1. Soltar en SignalR usando los datos en el Ref
+                asientosSeleccionadosRef.current.forEach(item => {
+                    try {
+                        if (proxyRef.current && connectionRef.current && connectionRef.current.state === 1) {
+                            proxyRef.current.invoke('liberarAsientoTemporal', String(vueloElegidoRef.current), item.asiento);
+                        }
+                    } catch(e) {}
+                });
+                
+                // 2. Limpiar pantalla
+                setAsientosSeleccionados([]);
+                Alert.alert("⏳ ¡Tiempo agotado!", "Has estado inactivo y tus asientos han sido liberados. Vuelve a seleccionarlos si deseas continuar.");
+            }, TIEMPO_LIMITE);
+        }
+    }, [asientosSeleccionados]);
+
+    // 🔥 NUEVO: El "beforeunload" de React Native. Se ejecuta si el usuario se va de la pantalla de golpe
+    useEffect(() => {
+        return () => {
+            if (asientosSeleccionadosRef.current.length > 0) {
+                asientosSeleccionadosRef.current.forEach(item => {
+                    try {
+                        if (proxyRef.current && connectionRef.current && connectionRef.current.state === 1) {
+                            proxyRef.current.invoke('liberarAsientoTemporal', String(vueloElegidoRef.current), item.asiento);
+                        }
+                    } catch(e) {}
+                });
+            }
+            if (temporizadorRef.current) clearTimeout(temporizadorRef.current);
+        };
+    }, []);
+
+ useEffect(() => {
         const connection = signalr.hubConnection(SIGNALR_URL);
+        if (SIGNALR_URL.includes('ngrok')) {
+        connection.headers = {
+            'Bypass-Tunnel-Reminder': 'true',
+            'ngrok-skip-browser-warning': 'true'
+        };
+        console.log("🛠️ Pase VIP de Ngrok activado");
+    }
         connectionRef.current = connection;
         const proxy = connection.createHubProxy('asientosHub');
         proxyRef.current = proxy;
@@ -57,16 +111,15 @@ const Reservas = ({ navigation }) => {
             }
         });
 
-        connection.start().done(() => {
-            console.log('📡 SignalR Conectado Exitosamente');
+        // 🔥 EL ARREGLO 1: Agregamos withCredentials: false aquí
+        connection.start({ transport: ['webSockets', 'longPolling'], withCredentials: false }).done(() => {
+            console.log('📡 SignalR Conectado Exitosamente en la App');
         }).fail((error) => {
-            // 🔥 SILENCIADOR DE SIGNALR: Ya no spamea alertas, falla en silencio
-            console.log('📡 SignalR Radar en vivo desactivado.'); 
+            console.log('📡 ERROR SIGNALR INICIAL:', error);
         });
 
         return () => connection.stop();
     }, []);
-
     useEffect(() => {
         if (!verificandoGuardia && correoAuth && tokenAuth) {
             cargarIniciales(correoAuth, tokenAuth);
@@ -112,7 +165,6 @@ const Reservas = ({ navigation }) => {
             }
 
             if (resClases.data.success) {
-                // 🔥 SOLUCIÓN DEL CRASHEO (.toString of undefined)
                 const clasesLimpias = resClases.data.clases.map(c => {
                     const val = Object.values(c);
                     return {
@@ -127,7 +179,7 @@ const Reservas = ({ navigation }) => {
         } finally { setCargando(false); }
     };
 
-    useFocusEffect(
+  useFocusEffect(
         useCallback(() => {
             let interval;
             if (!verificandoGuardia && vueloElegido && correoAuth && tokenAuth) {
@@ -144,15 +196,21 @@ const Reservas = ({ navigation }) => {
                         });
 
                         if (res.data.success) {
-                            const ocupadosDB = res.data.ocupados || [];
+                            const ocupadosDB = res.data.ocupados || res.data.Ocupados || [];
+                            const bloqueadosDB = res.data.bloqueados || res.data.Bloqueados || [];
+                            
                             setOcupados(ocupadosDB);
+                            
+                            // 🔥 Actualizamos la pantalla de la App con los bloqueos de la Web
+                            setAsientosBloqueados(bloqueadosDB);
 
+                            // Verificamos si alguien compró nuestro asiento
                             setAsientosSeleccionados(prevSeleccionados => {
                                 const asientosPerdidos = prevSeleccionados.filter(a => ocupadosDB.includes(a.asiento));
                                 if (asientosPerdidos.length > 0) {
                                     const nombresPerdidos = asientosPerdidos.map(a => a.asiento).join(', ');
                                     setTimeout(() => {
-                                        Alert.alert("¡Asiento Ocupado!", `Alguien acaba de pagar el asiento ${nombresPerdidos}.`);
+                                        Alert.alert("¡Asiento Ocupado!", `La Web (o alguien más) acaba de pagar el asiento ${nombresPerdidos}.`);
                                     }, 200);
                                     return prevSeleccionados.filter(a => !ocupadosDB.includes(a.asiento));
                                 }
@@ -161,13 +219,15 @@ const Reservas = ({ navigation }) => {
                         }
                     } catch (error) {}
                 };
-                interval = setInterval(sincronizarAsientos, 30000);
+                
+                // 🔥 Radar rápido: cada 2.5 segundos (2500ms) en lugar de 30s
+                interval = setInterval(sincronizarAsientos, 500);
             }
             return () => { if (interval) clearInterval(interval); };
         }, [vueloElegido, correoAuth, tokenAuth, verificandoGuardia])
     );
 
-    const handleVueloChange = async (idVuelo) => {
+   const handleVueloChange = async (idVuelo) => {
         setVueloElegido(idVuelo);
         setAsientosSeleccionados([]);
         setAsientosBloqueados([]); 
@@ -186,8 +246,13 @@ const Reservas = ({ navigation }) => {
             });
 
             if (resMapa.data.success) {
-                setCapacidad(resMapa.data.capacidad || 0);
-                setOcupados(resMapa.data.ocupados || []);
+                // Soportamos mayúsculas o minúsculas por si el backend serializa distinto
+                setCapacidad(resMapa.data.capacidad || resMapa.data.Capacidad || 0);
+                setOcupados(resMapa.data.ocupados || resMapa.data.Ocupados || []);
+                
+                // 🔥 EL PUENTE: Leemos los bloqueados que vienen desde la Web/Servidor
+                setAsientosBloqueados(resMapa.data.bloqueados || resMapa.data.Bloqueados || []);
+                
                 setMapaVisible(true);
             } else {
                 Alert.alert("Error", resMapa.data.mensaje || "No se pudo cargar el mapa.");
@@ -196,7 +261,30 @@ const Reservas = ({ navigation }) => {
             Alert.alert("Error de Conexión", "No se pudo comunicar con el servidor."); 
         } finally { setCargando(false); }
     };
+const notificarSignalR = (accion, idVuelo, asiento) => {
+        if (!connectionRef.current || !proxyRef.current) return;
 
+        let metodoReal = accion === 'bloquear' ? 'BloquearAsientoTemporal' : 'LiberarAsientoTemporal';
+        console.log(`📡 Intentando enviar a Servidor: ${metodoReal} -> Vuelo: ${idVuelo}, Asiento: ${asiento}`);
+
+        if (connectionRef.current.state === 1) {
+            proxyRef.current.invoke(metodoReal, String(idVuelo), String(asiento))
+                .then(() => console.log("✅ ¡Aviso enviado y recibido por el servidor!"))
+                .catch(e => console.log("❌ Fallo enviando a SignalR:", e));
+        } 
+        else {
+            console.log("⚠️ SignalR estaba dormido (Estado: " + connectionRef.current.state + "). Despertando...");
+            
+            // 🔥 EL ARREGLO 2: Agregamos withCredentials: false aquí también
+            connectionRef.current.start({ transport: ['webSockets', 'longPolling'], withCredentials: false }).done(() => {
+                proxyRef.current.invoke(metodoReal, String(idVuelo), String(asiento))
+                    .then(() => console.log("✅ ¡Aviso enviado tras reconectar!"))
+                    .catch(e => console.log("❌ Fallo enviando a SignalR tras reconectar:", e));
+            }).fail((error) => {
+                console.log("❌ Hubo un rechazo del servidor al conectar. Error real:", error);
+            });
+        }
+    };
     const toggleAsiento = (asiento, idClase, precio) => {
         if (claseElegida !== '' && parseInt(claseElegida) !== idClase) return;
 
@@ -204,21 +292,14 @@ const Reservas = ({ navigation }) => {
         
         if (yaSeleccionado) {
             setAsientosSeleccionados(prev => prev.filter(a => a.asiento !== asiento));
-            try {
-                if (proxyRef.current && connectionRef.current && connectionRef.current.state === 1) {
-                    proxyRef.current.invoke('liberarAsientoTemporal', String(vueloElegido), asiento);
-                }
-            } catch(e) {}
+            // Le decimos a nuestra función que use la acción "liberar"
+            notificarSignalR('liberar', vueloElegido, asiento);
         } else {
             setAsientosSeleccionados(prev => [...prev, { asiento, id_clase: idClase, precio }]);
-            try {
-                if (proxyRef.current && connectionRef.current && connectionRef.current.state === 1) {
-                    proxyRef.current.invoke('bloquearAsientoTemporal', String(vueloElegido), asiento);
-                }
-            } catch(e) {}
+            // Le decimos a nuestra función que use la acción "bloquear"
+            notificarSignalR('bloquear', vueloElegido, asiento);
         }
     };
-
     const confirmarReserva = async () => {
         if (!vueloElegido) { Alert.alert("Atención", "Selecciona un vuelo."); return; }
         if (asientosSeleccionados.length === 0) { Alert.alert("Atención", "Selecciona al menos un asiento."); return; }
@@ -230,7 +311,6 @@ const Reservas = ({ navigation }) => {
 
         setGuardando(true);
         try {
-            // Empacamos en formato puro para VB.NET ("1A:3", "1B:3")
             const asientosFormateados = asientosSeleccionados.map(item => `${item.asiento}:${item.id_clase}`);
 
             const formData = new FormData();
@@ -238,9 +318,6 @@ const Reservas = ({ navigation }) => {
             formData.append('email', String(correoAuth));
             formData.append('token', String(tokenAuth));
             formData.append('idVuelo', String(vueloElegido)); 
-            
-            // 🔥 SOLUCIÓN FORMAT EXCEPTION: Enviamos como texto separado por comas (SIN JSON)
-            // Esto viajará como "1A:3,1B:3", lo cual VB.NET digiere perfectamente.
             formData.append('asientos', asientosFormateados.join(','));
 
             const response = await axios.post(API_URL, formData, {
@@ -249,6 +326,10 @@ const Reservas = ({ navigation }) => {
 
             if (response.data.success) {
                 const codigo = response.data.codigo || response.data.codigo_reserva;
+                
+                // 🔥 NUEVO: Limpiamos los seleccionados antes de cambiar de pantalla para que el reloj se apague
+                setAsientosSeleccionados([]); 
+
                 Alert.alert(
                     "¡Reserva Confirmada! 🎉", `Tu localizador es: ${codigo}\n¿Deseas pagar ahora?`,
                     [
@@ -373,7 +454,6 @@ const Reservas = ({ navigation }) => {
                                 <Picker selectedValue={claseElegida} onValueChange={setClaseElegida} dropdownIconColor="#0d47a1">
                                     <Picker.Item label="-- Mostrar Todo --" value="" color="#888" />
                                     {clases.map((c) => (
-                                        // 🔥 SE ELIMINÓ EL .toString() PROBLEMÁTICO
                                         <Picker.Item key={c.id_tipo_boleto} label={c.nombre} value={c.id_tipo_boleto} />
                                     ))}
                                 </Picker>
