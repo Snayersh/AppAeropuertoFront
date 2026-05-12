@@ -5,6 +5,7 @@ import axios from 'axios';
 import { API_URL } from '../config';
 import { useGuardia } from '../hooks/useGuardia'; 
 
+
 const MisBoletos = ({ navigation }) => {
     const { correoAuth, tokenAuth, verificandoGuardia } = useGuardia(navigation);
 

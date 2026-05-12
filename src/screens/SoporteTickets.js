@@ -4,8 +4,7 @@ import { Picker } from '@react-native-picker/picker';
 import { useFocusEffect } from '@react-navigation/native';
 import axios from 'axios';
 import { API_URL } from '../config';
-import { useGuardia } from '../hooks/useGuardia';
-
+import { useGuardia } from '../hooks/useGuardia'; 
 const SoporteTickets = ({ navigation }) => {
     const { correoAuth, tokenAuth, verificandoGuardia } = useGuardia(navigation);
 
@@ -151,14 +150,14 @@ const SoporteTickets = ({ navigation }) => {
 
     // Helper para los Badges de Estado
     const getBadgeStyle = (estado) => {
-        const est = estado ? estado.toLowerCase() : '';
+        const est = estado ? String(estado).toLowerCase() : '';
         if (est.includes('abierto')) return styles.badgeAbierto;
         if (est.includes('cerrado')) return styles.badgeCerrado;
         return styles.badgeProceso; // por defecto o "en proceso"
     };
 
     const getBadgeTextStyle = (estado) => {
-        const est = estado ? estado.toLowerCase() : '';
+        const est = estado ? String(estado).toLowerCase() : '';
         if (est.includes('abierto')) return styles.badgeTextAbierto;
         if (est.includes('cerrado')) return styles.badgeTextCerrado;
         return styles.badgeTextProceso;
@@ -201,9 +200,11 @@ const SoporteTickets = ({ navigation }) => {
                         <View style={styles.pickerContainer}>
                             <Picker selectedValue={idTipo} onValueChange={(val) => setIdTipo(val)} dropdownIconColor="#0d47a1">
                                 <Picker.Item label="-- Seleccione una categoría --" value="" color="#888" />
-                                {tiposTicket.map((t, index) => (
-                                    <Picker.Item key={index} label={t.descripcion || t.nombre} value={t.id_tipo.toString()} />
-                                ))}
+                                {/* 🔥 MAGIA: Extracción de datos para Tipos de Ticket */}
+                                {tiposTicket.map((t, index) => {
+                                    const vals = Object.values(t);
+                                    return <Picker.Item key={index} label={vals[1]} value={String(vals[0])} />
+                                })}
                             </Picker>
                         </View>
 
@@ -237,22 +238,30 @@ const SoporteTickets = ({ navigation }) => {
                                 <Text style={styles.emptyText}>No tiene tickets de soporte registrados.</Text>
                             </View>
                         ) : (
-                            tickets.map((t, index) => (
-                                <View key={index} style={styles.ticketRow}>
-                                    <View style={{ flex: 1, paddingRight: 10 }}>
-                                        <Text style={styles.ticketId}>TCK-{t.id_ticket}</Text>
-                                        <Text style={styles.ticketAsunto} numberOfLines={2}>{t.asunto}</Text>
-                                    </View>
-                                    <View style={{ alignItems: 'flex-end', justifyContent: 'center' }}>
-                                        <View style={[styles.badge, getBadgeStyle(t.estado)]}>
-                                            <Text style={[styles.badgeText, getBadgeTextStyle(t.estado)]}>{t.estado || 'PROCESO'}</Text>
+                            // 🔥 MAGIA: Extracción de datos para la tabla de Tickets
+                            tickets.map((t, index) => {
+                                const vals = Object.values(t);
+                                const idTicket = vals[0];
+                                const asuntoTicket = vals[1];
+                                const estadoTicket = String(vals[2] || '');
+
+                                return (
+                                    <View key={index} style={styles.ticketRow}>
+                                        <View style={{ flex: 1, paddingRight: 10 }}>
+                                            <Text style={styles.ticketId}>TCK-{idTicket}</Text>
+                                            <Text style={styles.ticketAsunto} numberOfLines={2}>{asuntoTicket}</Text>
                                         </View>
-                                        <TouchableOpacity style={styles.btnOutline} onPress={() => verHilo(t.id_ticket)}>
-                                            <Text style={styles.btnOutlineText}>Ver Hilo 💬</Text>
-                                        </TouchableOpacity>
+                                        <View style={{ alignItems: 'flex-end', justifyContent: 'center' }}>
+                                            <View style={[styles.badge, getBadgeStyle(estadoTicket)]}>
+                                                <Text style={[styles.badgeText, getBadgeTextStyle(estadoTicket)]}>{estadoTicket || 'PROCESO'}</Text>
+                                            </View>
+                                            <TouchableOpacity style={styles.btnOutline} onPress={() => verHilo(idTicket)}>
+                                                <Text style={styles.btnOutlineText}>Ver Hilo 💬</Text>
+                                            </TouchableOpacity>
+                                        </View>
                                     </View>
-                                </View>
-                            ))
+                                );
+                            })
                         )}
                     </View>
 
@@ -279,12 +288,25 @@ const SoporteTickets = ({ navigation }) => {
                             data={respuestas}
                             keyExtractor={(item, index) => index.toString()}
                             contentContainerStyle={{ padding: 20 }}
-                            renderItem={({ item }) => (
-                                <View style={styles.chatBubble}>
-                                    <Text style={styles.chatDate}>{item.fecha_registro || 'FECHA DESCONOCIDA'}</Text>
-                                    <Text style={styles.chatMessage}>{item.mensaje}</Text>
-                                </View>
-                            )}
+                            renderItem={({ item }) => {
+                                // 🔥 MAGIA: Extracción de datos para las respuestas del chat
+                                const vals = Object.values(item);
+                                const mensaje = vals[0];
+                                let fecha = vals[1];
+
+                                // Limpiamos la fecha si viene con el formato feo de la base de datos (T00:00:00)
+                                if (typeof fecha === 'string' && fecha.includes('T')) {
+                                    const partes = fecha.split('T');
+                                    fecha = `${partes[0]} ${partes[1].substring(0, 5)} hrs`;
+                                }
+
+                                return (
+                                    <View style={styles.chatBubble}>
+                                        <Text style={styles.chatDate}>{fecha || 'FECHA DESCONOCIDA'}</Text>
+                                        <Text style={styles.chatMessage}>{mensaje}</Text>
+                                    </View>
+                                );
+                            }}
                             ListEmptyComponent={
                                 <View style={styles.emptyBox}>
                                     <Text style={styles.emptyText}>Aún no hay mensajes en este ticket.</Text>
