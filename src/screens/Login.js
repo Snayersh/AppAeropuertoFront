@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { View, Text, TextInput, StyleSheet, TouchableOpacity, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Image } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import { API_URL } from '../config';
@@ -103,13 +103,18 @@ const Login = ({ navigation, route }) => {
             <ScrollView contentContainerStyle={styles.scrollContainer} keyboardShouldPersistTaps="handled">
                 <View style={styles.loginCard}>
                     
-                    <View style={styles.header}>
-                        <View style={styles.brandIconContainer}>
-                            <Text style={styles.brandIconText}>✈️</Text>
-                        </View>
-                        <Text style={styles.title}>Portal de Acceso</Text>
-                        <Text style={styles.subtitle}>Aeropuerto Internacional La Aurora</Text>
-                    </View>
+                 <View style={styles.header}>
+    <View style={styles.brandIconContainer}>
+        {/* Aquí va la imagen real en lugar del Text */}
+        <Image 
+            source={require('../img/icono.png')} // <-- Ajusta esta ruta a donde tengas tu imagen
+            style={styles.brandIconImage}
+            resizeMode="contain"
+        />
+    </View>
+    <Text style={styles.title}>Portal de Acceso</Text>
+    <Text style={styles.subtitle}>Aeropuerto Internacional La Aurora</Text>
+</View>
 
                     {mensajeExito !== '' && (
                         <View style={styles.pnlExito}>
@@ -213,8 +218,29 @@ const styles = StyleSheet.create({
     header: { alignItems: 'center', marginBottom: 30 },
     
     // Simulación del brand-icon web
-    brandIconContainer: { width: 55, height: 55, borderRadius: 12, borderWidth: 1, borderColor: '#edf2f9', justifyContent: 'center', alignItems: 'center', marginBottom: 15, backgroundColor: '#f8f9fc' },
-    brandIconText: { fontSize: 30 },
+   // Simulación del brand-icon web
+    brandIconContainer: { 
+        width: 60, 
+        height: 60, 
+        borderRadius: 12, 
+        borderWidth: 1, 
+        borderColor: '#edf2f9', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        marginBottom: 15, 
+        backgroundColor: '#f8f9fc',
+        padding: 5, // Un poco de espacio interior para que el logo respire
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 3,
+        elevation: 2
+    },
+    // Este es el nuevo estilo para la imagen
+    brandIconImage: { 
+        width: '100%', 
+        height: '100%' 
+    },
     
     title: { fontSize: 24, fontWeight: 'bold', color: '#2c3e50', letterSpacing: -0.5 },
     subtitle: { fontSize: 10, color: '#6c757d', marginTop: 5, textTransform: 'uppercase', letterSpacing: 1, fontWeight: 'bold' },
