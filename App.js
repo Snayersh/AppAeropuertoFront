@@ -25,7 +25,13 @@ const Stack = createStackNavigator();
 const prefix = Linking.createURL('/');
 
 export default function App() {
-  
+  if (!__DEV__) {
+    // Esto borra todas las funciones de consola en modo producción
+    console.log = () => {};
+    console.error = () => {};
+    console.warn = () => {};
+    console.info = () => {};
+}
   // 🔥 Configuramos el objeto 'linking'
   const linking = {
     prefixes: [prefix, 'aeropuertoaurora://'],

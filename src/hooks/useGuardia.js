@@ -10,37 +10,42 @@ export const useGuardia = (navigation) => {
     useEffect(() => {
         const revisarCredenciales = async () => {
             try {
-                // El guardia busca en la memoria del celular
                 const email = await AsyncStorage.getItem('UserEmail');
                 const token = await AsyncStorage.getItem('UserToken');
-                const rol = await AsyncStorage.getItem('UserRole'); // 🔥 NUEVO: El guardia revisa el rol
+                const rol = await AsyncStorage.getItem('UserRole');
 
-                // Si falta alguno de los dos, no lo deja pasar
-                if (!email || !token) {
-                    Alert.alert("🔒 Acceso Restringido", "Debes iniciar sesión para acceder a esta área.");
+                // 🔥 MEJORA 1: Validación de Integridad Estricta
+                // No solo revisamos que "exista", sino que no sea un string vacío o basura (ej. longitud mínima).
+                if (!email || !token || token.trim().length < 10 || email.indexOf('@') === -1) {
+                    await AsyncStorage.clear(); // Defensa activa: destruimos cualquier rastro corrupto
+                    Alert.alert("🔒 Acceso Restringido", "Tu sesión es inválida o ha expirado. Por favor, ingresa de nuevo.");
                     navigation.replace('Login'); 
-                    return; // Cortamos la ejecución aquí
+                    return; 
                 }
 
-                // 🔥 NUEVO FILTRO: Si NO es cliente (Ajusta el '3' al ID real de tu rol Cliente)
+                // El guardia revisa el rol
                 if (rol !== '2') {
+                    await AsyncStorage.clear(); // Limpieza profunda inmediata
                     Alert.alert(
                         "⛔ Acceso Denegado", 
-                        "Esta aplicación es exclusiva para pasajeros. Por favor, utiliza el portal web para personal administrativo."
+                        "Esta aplicación es exclusiva para pasajeros. El personal administrativo debe usar el portal web."
                     );
-                    await AsyncStorage.clear(); // Le quitamos las llaves por si acaso
                     navigation.replace('Login');
                     return;
                 }
 
-                // Si todo está bien, le entrega las credenciales a la pantalla
-                setCorreoAuth(email);
-                setTokenAuth(token);
+                // 🔥 MEJORA 2: Sanitización de variables en memoria
+                // Eliminamos espacios en blanco accidentales antes de pasarlos al estado
+                setCorreoAuth(email.trim());
+                setTokenAuth(token.trim());
+
             } catch (error) {
-                console.log("Error del Guardia:", error);
+                console.log("Error de Integridad en Guardia:", error);
+                // 🔥 MEJORA 3: Política de "Fail-Safe" (Fallo Seguro)
+                // Si la memoria falla o el celular da error al leer, asumimos que es un ataque o corrupción y cerramos todo.
+                await AsyncStorage.clear();
                 navigation.replace('Login');
             } finally {
-                // El guardia termina su revisión
                 setVerificandoGuardia(false);
             }
         };
@@ -48,6 +53,5 @@ export const useGuardia = (navigation) => {
         revisarCredenciales();
     }, [navigation]);
 
-    // Devolvemos los datos listos para que cualquier pantalla los use
     return { correoAuth, tokenAuth, verificandoGuardia };
 };

@@ -6,7 +6,7 @@ import axios from 'axios';
 import { API_URL } from '../config';
 import { useGuardia } from '../hooks/useGuardia';
 
-const SIGNALR_URL = API_URL.replace('/ApiMovil.ashx', '');
+const SIGNALR_URL = API_URL.replace('/services/ApiMovil.ashx', '');
 window.navigator.userAgent = 'react-native';
 import signalr from 'react-native-signalr';
 
@@ -83,43 +83,50 @@ const Reservas = ({ navigation }) => {
         };
     }, []);
 
- useEffect(() => {
-        const connection = signalr.hubConnection(SIGNALR_URL);
-        if (SIGNALR_URL.includes('ngrok')) {
-        connection.headers = {
-            'Bypass-Tunnel-Reminder': 'true',
-            'ngrok-skip-browser-warning': 'true'
-        };
-        console.log("🛠️ Pase VIP de Ngrok activado");
-    }
+useEffect(() => {
+    let connectionRefLocal = null;
+
+    const arrancarSignalR = async () => {
+        // Obtenemos la base: http://192.168.1.15:44356/services
+     const baseUrl = API_URL.replace('/services/ApiMovil.ashx', '');
+
+        console.log("🔌 Conectando directamente a:", baseUrl);
+
+        const connection = signalr.hubConnection(baseUrl);
+        
+        // 🔥 ESTO ES LO QUE SOLUCIONA EL DEPLOY EN SUB-CARPETAS
+        // Le dice a la librería: "Busca el /negotiate exactamente aquí"
+        connection.url = `${baseUrl}/signalr`; 
+
         connectionRef.current = connection;
+        connectionRefLocal = connection;
+        
         const proxy = connection.createHubProxy('asientosHub');
         proxyRef.current = proxy;
 
-        proxy.on('alguienBloqueoAsiento', (vueloNotificado, asiento) => {
-            if (String(vueloElegidoRef.current) === String(vueloNotificado)) {
-                setAsientosBloqueados(prev => {
-                    if (!prev.includes(asiento)) return [...prev, asiento];
-                    return prev;
-                });
+        // --- Listeners ---
+        proxy.on('alguienBloqueoAsiento', (vuelo, asiento) => {
+            if (String(vueloElegidoRef.current) === String(vuelo)) {
+                setAsientosBloqueados(prev => !prev.includes(asiento) ? [...prev, asiento] : prev);
             }
         });
 
-        proxy.on('alguienLiberoAsiento', (vueloNotificado, asiento) => {
-            if (String(vueloElegidoRef.current) === String(vueloNotificado)) {
+        proxy.on('alguienLiberoAsiento', (vuelo, asiento) => {
+            if (String(vueloElegidoRef.current) === String(vuelo)) {
                 setAsientosBloqueados(prev => prev.filter(a => a !== asiento));
             }
         });
 
-        // 🔥 EL ARREGLO 1: Agregamos withCredentials: false aquí
-        connection.start({ transport: ['webSockets', 'longPolling'], withCredentials: false }).done(() => {
-            console.log('📡 SignalR Conectado Exitosamente en la App');
-        }).fail((error) => {
-            console.log('📡 ERROR SIGNALR INICIAL:', error);
-        });
+        // --- Inicio de Conexión ---
+        // Usamos solo longPolling para asegurar compatibilidad en redes locales/VPN
+connection.start({ transport: ['longPolling', 'webSockets'], withCredentials: false })
+            .done(() => console.log('📡 SignalR Conectado con ÉXITO'))
+            .fail(error => console.log('📡 ERROR DE NEGOCIACIÓN:', error));
+    };
 
-        return () => connection.stop();
-    }, []);
+    arrancarSignalR();
+    return () => { if (connectionRefLocal) connectionRefLocal.stop(); };
+}, []);
     useEffect(() => {
         if (!verificandoGuardia && correoAuth && tokenAuth) {
             cargarIniciales(correoAuth, tokenAuth);
@@ -262,29 +269,43 @@ const Reservas = ({ navigation }) => {
         } finally { setCargando(false); }
     };
 const notificarSignalR = (accion, idVuelo, asiento) => {
-        if (!connectionRef.current || !proxyRef.current) return;
+    if (!connectionRef.current || !proxyRef.current) return;
 
-        let metodoReal = accion === 'bloquear' ? 'BloquearAsientoTemporal' : 'LiberarAsientoTemporal';
-        console.log(`📡 Intentando enviar a Servidor: ${metodoReal} -> Vuelo: ${idVuelo}, Asiento: ${asiento}`);
+    // Usamos PascalCase para coincidir exactamente con el Sub de VB.NET
+    let metodoReal = accion === 'bloquear' ? 'BloquearAsientoTemporal' : 'LiberarAsientoTemporal';
+    
+    console.log(`📡 Intentando enviar: ${metodoReal} -> Vuelo: ${idVuelo}, Asiento: ${asiento}`);
 
-        if (connectionRef.current.state === 1) {
-            proxyRef.current.invoke(metodoReal, String(idVuelo), String(asiento))
-                .then(() => console.log("✅ ¡Aviso enviado y recibido por el servidor!"))
-                .catch(e => console.log("❌ Fallo enviando a SignalR:", e));
-        } 
-        else {
-            console.log("⚠️ SignalR estaba dormido (Estado: " + connectionRef.current.state + "). Despertando...");
-            
-            // 🔥 EL ARREGLO 2: Agregamos withCredentials: false aquí también
-            connectionRef.current.start({ transport: ['webSockets', 'longPolling'], withCredentials: false }).done(() => {
-                proxyRef.current.invoke(metodoReal, String(idVuelo), String(asiento))
-                    .then(() => console.log("✅ ¡Aviso enviado tras reconectar!"))
-                    .catch(e => console.log("❌ Fallo enviando a SignalR tras reconectar:", e));
-            }).fail((error) => {
-                console.log("❌ Hubo un rechazo del servidor al conectar. Error real:", error);
+    // Estado 1 = Conectado
+    if (connectionRef.current.state === 1) {
+        proxyRef.current.invoke(metodoReal, String(idVuelo), String(asiento))
+            .done(() => {
+                // ✅ CORRECTO: .done en lugar de .then
+                console.log("✅ Servidor recibió el mensaje correctamente");
+            })
+            .fail((e) => {
+                // ✅ CORRECTO: .fail en lugar de .catch
+                console.log("❌ Error en invoke:", e);
             });
-        }
-    };
+    } 
+    // Estado 4 = Desconectado
+    else if (connectionRef.current.state === 4) {
+        console.log("⚠️ SignalR estaba dormido (Estado 4). Despertando...");
+        
+        connectionRef.current.start({ transport: ['longPolling', 'webSockets'], withCredentials: false })
+            .done(() => {
+                console.log("📡 Reconexión exitosa, enviando comando...");
+                proxyRef.current.invoke(metodoReal, String(idVuelo), String(asiento))
+                    .done(() => console.log("✅ ¡Aviso enviado tras reconectar!"))
+                    .fail((e) => console.log("❌ Fallo tras reconectar:", e));
+            })
+            .fail((error) => {
+                console.log("❌ No se pudo reconectar:", error);
+            });
+    } else {
+        console.log(`⏳ Conexión en estado transitorio (${connectionRef.current.state}). Intento ignorado.`);
+    }
+};
     const toggleAsiento = (asiento, idClase, precio) => {
         if (claseElegida !== '' && parseInt(claseElegida) !== idClase) return;
 

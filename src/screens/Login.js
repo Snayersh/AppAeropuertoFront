@@ -107,7 +107,7 @@ const Login = ({ navigation, route }) => {
     <View style={styles.brandIconContainer}>
         {/* Aquí va la imagen real en lugar del Text */}
         <Image 
-            source={require('../img/icono.png')} // <-- Ajusta esta ruta a donde tengas tu imagen
+            source={require('../../assets/icon.png')} // <-- Ajusta esta ruta a donde tengas tu imagen
             style={styles.brandIconImage}
             resizeMode="contain"
         />
