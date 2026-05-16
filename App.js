@@ -18,7 +18,7 @@ import MisFacturas from './src/screens/MisFacturas';
 import PaseAbordar from './src/screens/PaseAbordar';
 import RecuperarPassword from './src/screens/RecuperarPassword';
 import SoporteTickets from './src/screens/SoporteTickets';
-
+import Checkin from './src/screens/checkin';
 const Stack = createStackNavigator();
 
 // 🔥 Configuramos los prefijos que la app va a escuchar
@@ -62,6 +62,7 @@ export default function App() {
         <Stack.Screen name="PaseAbordar" component={PaseAbordar} />
         <Stack.Screen name="RecuperarPassword" component={RecuperarPassword} />
         <Stack.Screen name="SoporteTickets" component={SoporteTickets} />
+        <Stack.Screen name="Checkin" component={Checkin} />
       </Stack.Navigator>
     </NavigationContainer>
   );

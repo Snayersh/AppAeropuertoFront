@@ -229,6 +229,10 @@ const cargarClima = async () => {
                                     <Text style={styles.menuIcon}>🧳</Text>
                                     <Text style={styles.menuText}>Equipaje</Text>
                                 </TouchableOpacity>
+<TouchableOpacity style={styles.menuCard} onPress={() => navigation.navigate('Checkin')}>
+    <Text style={styles.menuIcon}>📝</Text>
+    <Text style={styles.menuText}>Check-In</Text>
+</TouchableOpacity>
                                 <TouchableOpacity style={styles.menuCard} onPress={() => navigation.navigate('MisFacturas')}>
                                     <Text style={styles.menuIcon}>🧾</Text>
                                     <Text style={styles.menuText}>Facturas</Text>
@@ -237,6 +241,7 @@ const cargarClima = async () => {
                                     <Text style={styles.menuIcon}>🎧</Text>
                                     <Text style={styles.menuText}>Soporte</Text>
                                 </TouchableOpacity>
+                              tk-46497EDA
                             </ScrollView>
                         </View>
                     )}
